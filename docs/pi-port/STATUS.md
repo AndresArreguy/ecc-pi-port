@@ -39,13 +39,13 @@ en checkout detached del commit del lock. El build estampa `sourceRef` en
   `prepack` = `build:check`.
 - CI: `.github/workflows/ci.yml` (setup + build + tests + release-check).
 - Release: `.github/workflows/release.yml` (tags `v*` → `npm publish --provenance`).
-- Repo URL usada en metadata/badges: `github.com/andresarreguy/ecc-pi-port`
+- Repo URL usada en metadata/badges: `github.com/AndresArreguy/ecc-pi-port`
   (ajustar si el handle real es distinto).
 
 ## Bootstrap
 
 ```bash
-git clone https://github.com/andresarreguy/ecc-pi-port.git
+git clone https://github.com/AndresArreguy/ecc-pi-port.git
 cd ecc-pi-port
 npm run setup          # instala, clona ECC, build, tests
 pi install .

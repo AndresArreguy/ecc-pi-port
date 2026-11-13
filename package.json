@@ -17,7 +17,7 @@
   ],
   "author": {
     "name": "BaráDev",
-    "url": "https://github.com/andresarreguy"
+    "url": "https://github.com/AndresArreguy"
   },
   "contributors": [
     {
@@ -27,11 +27,11 @@
   ],
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/andresarreguy/ecc-pi-port.git"
+    "url": "git+https://github.com/AndresArreguy/ecc-pi-port.git"
   },
-  "homepage": "https://github.com/andresarreguy/ecc-pi-port#readme",
+  "homepage": "https://github.com/AndresArreguy/ecc-pi-port#readme",
   "bugs": {
-    "url": "https://github.com/andresarreguy/ecc-pi-port/issues"
+    "url": "https://github.com/AndresArreguy/ecc-pi-port/issues"
   },
   "ecc": {
     "name": "ecc-universal",

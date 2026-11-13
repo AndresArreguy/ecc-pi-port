@@ -7,13 +7,13 @@ a [Pi](https://pi.dev): skills curadas, comandos como prompt templates, reglas d
 código, adaptador de hooks, runner de agentes aislado y flujo SDD — empaquetado
 como un paquete real de Pi.
 
-[![CI](https://github.com/andresarreguy/ecc-pi-port/actions/workflows/ci.yml/badge.svg)](https://github.com/andresarreguy/ecc-pi-port/actions/workflows/ci.yml)
+[![CI](https://github.com/AndresArreguy/ecc-pi-port/actions/workflows/ci.yml/badge.svg)](https://github.com/AndresArreguy/ecc-pi-port/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/ecc-pi-port?logo=npm)](https://www.npmjs.com/package/ecc-pi-port)
 [![npm downloads](https://img.shields.io/npm/dm/ecc-pi-port)](https://www.npmjs.com/package/ecc-pi-port)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Pi package](https://img.shields.io/badge/Pi-package-8A2BE2)](https://pi.dev/packages)
 [![ECC](https://img.shields.io/badge/ECC-v2.2.3-orange)](https://github.com/affaan-m/ECC)
-[![Stars](https://img.shields.io/github/stars/andresarreguy/ecc-pi-port?style=social)](https://github.com/andresarreguy/ecc-pi-port)
+[![Stars](https://img.shields.io/github/stars/AndresArreguy/ecc-pi-port?style=social)](https://github.com/AndresArreguy/ecc-pi-port)
 
 - **Fuente ECC:** [`affaan-m/ECC`](https://github.com/affaan-m/ECC) v2.2.3 (MIT, © 2026 Affaan Mustafa).
 - **Este port:** adaptadores, generadores, empaquetado y docs (MIT, © 2026 BaráDev).
@@ -53,7 +53,7 @@ para escribir `.pi/settings.json`.
 ### Desde el repo
 
 ```bash
-git clone https://github.com/andresarreguy/ecc-pi-port.git
+git clone https://github.com/AndresArreguy/ecc-pi-port.git
 cd ecc-pi-port
 
 # un solo comando: instala deps, clona ECC en el commit del lock,
@@ -340,4 +340,4 @@ MIT. Ver [`LICENSE`](LICENSE):
 Dale una estrella al repo — ayuda a que otros usuarios de Pi encuentren el port y
 a sostener el trabajo de curación y del updater. Issues y PRs son bienvenidos.
 
-[![Star this repo](https://img.shields.io/github/stars/andresarreguy/ecc-pi-port?style=social)](https://github.com/andresarreguy/ecc-pi-port)
+[![Star this repo](https://img.shields.io/github/stars/AndresArreguy/ecc-pi-port?style=social)](https://github.com/AndresArreguy/ecc-pi-port)
