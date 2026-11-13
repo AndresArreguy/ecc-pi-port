@@ -39,8 +39,13 @@ en checkout detached del commit del lock. El build estampa `sourceRef` en
   `prepack` = `build:check`.
 - CI: `.github/workflows/ci.yml` (setup + build + tests + release-check).
 - Release: `.github/workflows/release.yml` (tags `v*` → `npm publish --provenance`).
-- Repo URL usada en metadata/badges: `github.com/AndresArreguy/ecc-pi-port`
-  (ajustar si el handle real es distinto).
+- Repo URL usada en metadata/badges: `github.com/AndresArreguy/ecc-pi-port`.
+- Publicado en npm: **`ecc-pi-port@0.7.0`** (2026-11-13), maintainer
+  `andresarreguydev`. Instalar con `pi install npm:ecc-pi-port@0.7.0`.
+- Verificado desde npm: paquete instalado en config aislada → 8/8 checks
+  (skills, commands, hook `session:start`, `run_agent`).
+- Pendiente opcional: agregar `andresarreguy` como owner npm y configurar
+  Trusted Publishing para releases sin token.
 
 ## Bootstrap
 

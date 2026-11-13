@@ -11,6 +11,7 @@
 - Nuevos tests: helpers de update, overlays y flujo de update/rollback con repos git locales (31 tests).
 - Repo publicable como `ecc-pi-port`: `npm run setup` (clona ECC + build + tests), README en inglés/español con badges, CI/release workflows, `release:check` y `prepublishOnly`.
 - `./ecc` pasa a estar gitignored y se recrea desde `ecc.lock`.
+- Publicado en npm: `ecc-pi-port@0.7.0` (maintainer `andresarreguydev`).
 
 ## [0.6.0] - 2026-11-13
 
