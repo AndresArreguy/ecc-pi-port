@@ -1,0 +1,130 @@
+{
+  "name": "ecc-pi-port",
+  "version": "0.7.0",
+  "description": "Everything Claude Code (ECC) for Pi: 123 curated skills, prompt commands, rules, a hooks adapter, an isolated agent runner and an SDD flow.",
+  "license": "MIT",
+  "type": "module",
+  "keywords": [
+    "pi-package",
+    "pi",
+    "ecc",
+    "everything-claude-code",
+    "skills",
+    "prompts",
+    "agents",
+    "hooks",
+    "sdd"
+  ],
+  "author": {
+    "name": "BaráDev",
+    "url": "https://github.com/andresarreguy"
+  },
+  "contributors": [
+    {
+      "name": "Affaan Mustafa",
+      "url": "https://github.com/affaan-m/ECC"
+    }
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/andresarreguy/ecc-pi-port.git"
+  },
+  "homepage": "https://github.com/andresarreguy/ecc-pi-port#readme",
+  "bugs": {
+    "url": "https://github.com/andresarreguy/ecc-pi-port/issues"
+  },
+  "ecc": {
+    "name": "ecc-universal",
+    "version": "2.2.3",
+    "repository": "https://github.com/affaan-m/ECC",
+    "license": "MIT",
+    "copyright": "Copyright (c) 2026 Affaan Mustafa",
+    "note": "Portions of this package are derived from ECC under the MIT license. The generated skills/, prompts/ and rules/ directories are curated copies of ECC content."
+  },
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "files": [
+    "ecc.lock",
+    "extensions/",
+    "lib/",
+    "skills/",
+    "prompts/",
+    "rules/",
+    "config/",
+    "scripts/",
+    "docs/pi-port/",
+    "ecc/scripts/",
+    "ecc/hooks/",
+    "ecc/VERSION",
+    "ecc/LICENSE",
+    "ecc/package.json",
+    "README.md",
+    "README.es.md",
+    "CHANGELOG.md",
+    "SECURITY.md",
+    "LICENSE"
+  ],
+  "pi": {
+    "extensions": [
+      "./extensions/ecc-hooks.ts",
+      "./extensions/ecc-rules.ts",
+      "./extensions/ecc-agents.ts",
+      "./extensions/ecc-sdd.ts"
+    ],
+    "skills": [
+      "./skills"
+    ],
+    "prompts": [
+      "./prompts/*.md"
+    ],
+    "changelogPath": "./CHANGELOG.md"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-agent-core": "*",
+    "@earendil-works/pi-ai": "*",
+    "@earendil-works/pi-coding-agent": "*",
+    "@earendil-works/pi-tui": "*",
+    "typebox": "*"
+  },
+  "peerDependenciesMeta": {
+    "@earendil-works/pi-agent-core": {
+      "optional": true
+    },
+    "@earendil-works/pi-ai": {
+      "optional": true
+    },
+    "@earendil-works/pi-coding-agent": {
+      "optional": true
+    },
+    "@earendil-works/pi-tui": {
+      "optional": true
+    },
+    "typebox": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "setup": "node --experimental-strip-types scripts/setup.ts",
+    "build": "node --experimental-strip-types scripts/build.ts",
+    "build:check": "node --experimental-strip-types scripts/build.ts --check",
+    "build:skills": "node --experimental-strip-types scripts/build-skills.ts",
+    "build:rules": "node --experimental-strip-types scripts/build-rules.ts",
+    "build:prompts": "node --experimental-strip-types scripts/build-prompts.ts",
+    "build:agents": "node --experimental-strip-types scripts/build-agents.ts",
+    "update-ecc": "node --experimental-strip-types scripts/update-ecc.ts",
+    "test": "node --test \"tests/pi-port/*.test.ts\"",
+    "verify": "npm run build:check && npm test",
+    "verify:install": "node tests/pi-port/verify-install.mjs",
+    "release:check": "node --experimental-strip-types scripts/release-check.ts",
+    "pack:dry": "npm pack --dry-run",
+    "prepack": "npm run build:check",
+    "prepublishOnly": "npm run verify && npm run release:check"
+  },
+  "devDependencies": {
+    "typebox": "1.3.27"
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "description": "Model configuration for ECC SDD (spec-driven development) phases in Pi. Set provider/model/thinking per phase; values are not hardcoded. Use /sdd-model to view/update.",
+  "phases": {
+    "spec": {
+      "provider": "commandcode",
+      "model": "claude-opus-4-8",
+      "thinking": "high",
+      "tier": "strong",
+      "notes": "Spec definition (strong model)."
+    },
+    "plan": {
+      "provider": "commandcode",
+      "model": "claude-opus-4-8",
+      "thinking": "high",
+      "tier": "strong",
+      "notes": "Planning and architecture (strong model)."
+    },
+    "implement": {
+      "provider": "commandcode",
+      "model": "deepseek/deepseek-v4.1-flash-fast",
+      "thinking": null,
+      "tier": "cheap-cache",
+      "notes": "Implementation (cheap model with good cache pricing). Different family from review/verify."
+    },
+    "review": {
+      "provider": "commandcode",
+      "model": "gpt-5.4",
+      "thinking": "medium",
+      "tier": "different-family-than-implement",
+      "notes": "Review (different model family than implementation/DeepSeek)."
+    },
+    "verify": {
+      "provider": "commandcode",
+      "model": "google/gemini-3.5-flash",
+      "thinking": "medium",
+      "tier": "different-family-than-implement",
+      "notes": "Verification (different model family than implementation/DeepSeek)."
+    },
+    "light": {
+      "provider": "commandcode",
+      "model": "gpt-5.4-mini",
+      "thinking": "low",
+      "tier": "minimal",
+      "notes": "Light tasks: explore repo, summarize, commits (minimal model)."
+    }
+  },
+  "phaseAliases": {
+    "architecture": "plan",
+    "specify": "spec",
+    "planning": "plan",
+    "implementation": "implement",
+    "verification": "verify"
+  }
+}

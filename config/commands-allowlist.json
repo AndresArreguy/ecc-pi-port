@@ -1,0 +1,107 @@
+{
+  "version": 1,
+  "description": "Subset of ECC commands converted to Pi prompt templates for the initial SDD/quality port.",
+  "commands": [
+    {
+      "source": "plan-prd.md",
+      "name": "plan-prd",
+      "sddRole": "spec",
+      "status": "ready",
+      "dependencies": [],
+      "adaptations": [
+        "Kept .claude/prds output path for ECC SDLC compatibility; noted as configurable/open question for Pi-only workflows.",
+        "Replaced Claude-specific handoff phrasing where needed and clarified that /plan-prd and /plan are Pi prompt templates in this port.",
+        "No subagent, hook, or MCP dependency required."
+      ]
+    },
+    {
+      "source": "plan.md",
+      "name": "plan",
+      "sddRole": "plan",
+      "status": "ready",
+      "dependencies": [],
+      "adaptations": [
+        "Preserved inline-by-default planning; removed/rewrote Task-tool subagent delegation to inline analysis.",
+        "Normalized references to Pi commands/skills (e.g. /tdd-workflow skill, /code-review, /test-coverage) instead of Claude-only agent invocation.",
+        "Kept .claude/plans artifact path for compatibility and documented artifact-path considerations."
+      ]
+    },
+    {
+      "source": "prp-implement.md",
+      "name": "prp-implement",
+      "sddRole": "implement",
+      "status": "ready",
+      "dependencies": [],
+      "adaptations": [
+        "Retained file-driven implementation/validation workflow executable with Pi read/bash/edit/write tools.",
+        "Replaced any Claude subagent assumptions with direct inline execution steps.",
+        "Kept .claude/PRPs report/plan paths as source-compatible artifacts; noted portability considerations."
+      ]
+    },
+    {
+      "source": "feature-dev.md",
+      "name": "feature-dev",
+      "sddRole": "implement",
+      "status": "partial",
+      "blockedReason": "Original multi-agent orchestration (code-explorer/code-architect/code-reviewer) runs inline or via run_agent; no automatic 3-agent pipeline.",
+      "unblocksAt": "Future: automatic delegation pipeline (optional).",
+      "dependencies": [
+        "subagents",
+        "run_agent"
+      ],
+      "adaptations": [
+        "Converted agent-delegation phases to inline guidance using Pi tools (read/grep/find/bash/edit/write) so it can be followed without subagents.",
+        "Marked original multi-agent orchestration as degraded/blocked until delegation support is added.",
+        "Removed Task-tool-specific instructions."
+      ]
+    },
+    {
+      "source": "code-review.md",
+      "name": "code-review",
+      "sddRole": "review",
+      "status": "partial",
+      "blockedReason": "PR mode relies on GitHub CLI/API access and network connectivity; local review is fully usable.",
+      "unblocksAt": "Stage 4+ — environment with gh auth/network and optional MCP/GitHub tooling; PR publish automation may also benefit from hook/command integrations.",
+      "dependencies": [
+        "github-cli",
+        "network"
+      ],
+      "adaptations": [
+        "Preserved local and PR review modes with Pi-friendly tool usage.",
+        "Made gh/network-dependent PR fetch/publish steps explicitly conditional and documented fallbacks (review diff locally, produce report without publishing).",
+        "Normalized artifact/report path guidance for Pi workspace compatibility."
+      ]
+    },
+    {
+      "source": "test-coverage.md",
+      "name": "test-coverage",
+      "sddRole": "verify",
+      "status": "ready",
+      "dependencies": [],
+      "adaptations": [
+        "Kept framework-detection and coverage workflow; expressed as inline steps using Pi bash/read/edit/write tools.",
+        "Clarified that verification quality depends on project test tooling being installed locally.",
+        "No subagent, hook, or MCP dependency required."
+      ]
+    },
+    {
+      "source": "quality-gate.md",
+      "name": "quality-gate",
+      "sddRole": "quality-gate",
+      "status": "partial",
+      "blockedReason": "Original command wrapped the ECC hook runtime; the hooks adapter now runs the gate on edit/write and the template keeps an inline fallback.",
+      "dependencies": [
+        "hooks"
+      ],
+      "adaptations": [
+        "Converted to a Pi prompt template that explains the limitation and provides inline formatter-check alternatives (Biome/Prettier/gofmt/ruff) via bash when available.",
+        "Documented ECC hook-script invocation as unavailable in this Pi port unless hook bridge/scripts are wired.",
+        "Added explicit blocked status and unlock stage."
+      ]
+    }
+  ],
+  "notes": {
+    "tdd": "No ECC command named tdd exists under ecc/commands; TDD is provided by the tdd-workflow skill (available in pi/core). Not convertible from ecc/commands without modifying ./ecc.",
+    "verify": "Mapped to test-coverage for this subset as a practical verification/quality command; verification-loop remains available as a skill."
+  }
+}

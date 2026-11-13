@@ -1,0 +1,11 @@
+{
+  "description": "Subset of ECC agents ported to Pi (generated source list).",
+  "agents": [
+    "planner",
+    "code-reviewer",
+    "security-reviewer",
+    "build-error-resolver",
+    "tdd-guide",
+    "architect"
+  ]
+}

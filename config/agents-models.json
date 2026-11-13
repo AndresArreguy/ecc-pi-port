@@ -1,0 +1,42 @@
+{
+  "description": "Per-agent model and runtime limits for the Pi ECC agents port. Edit model fields to pin specific provider/model (and optional thinking) per agent.",
+  "defaults": {
+    "maxTurns": 12,
+    "timeoutMs": 300000,
+    "maxParallel": 2
+  },
+  "agents": {
+    "planner": {
+      "model": null,
+      "provider": null,
+      "thinking": null,
+      "comment": "Example: set provider='openai', model='gpt-5', thinking='high' for stronger planning."
+    },
+    "code-reviewer": {
+      "model": null,
+      "provider": null,
+      "thinking": null
+    },
+    "security-reviewer": {
+      "model": null,
+      "provider": null,
+      "thinking": null
+    },
+    "build-error-resolver": {
+      "model": null,
+      "provider": null,
+      "thinking": null,
+      "comment": "Example: use a cheaper/faster model for build fixes."
+    },
+    "tdd-guide": {
+      "model": null,
+      "provider": null,
+      "thinking": null
+    },
+    "architect": {
+      "model": null,
+      "provider": null,
+      "thinking": null
+    }
+  }
+}
