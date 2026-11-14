@@ -16,9 +16,11 @@ real Pi package.
 [![Stars](https://img.shields.io/github/stars/AndresArreguy/ecc-pi-port?style=social)](https://github.com/AndresArreguy/ecc-pi-port)
 
 - **ECC source:** [`affaan-m/ECC`](https://github.com/affaan-m/ECC) v2.2.3 (MIT, © 2026 Affaan Mustafa).
-- **This port:** adapters, generators, packaging and docs (MIT, © 2026 BaráDev).
+- **This port:** adapters, generators, packaging and docs (MIT, © 2026 Andres Arreguy).
 - Generated `skills/`, `prompts/` and `rules/` are curated ECC content under the
   same MIT license. See [`LICENSE`](LICENSE).
+
+Maintained by [Andres Arreguy](https://github.com/AndresArreguy).
 
 > Status and roadmap: [`docs/pi-port/STATUS.md`](docs/pi-port/STATUS.md).
 > Security checklist: [`SECURITY.md`](SECURITY.md).
@@ -325,7 +327,7 @@ ecc-pi-port/
 
 MIT. See [`LICENSE`](LICENSE):
 
-- Port: © 2026 BaráDev.
+- Port: © 2026 Andres Arreguy.
 - ECC: © 2026 Affaan Mustafa — <https://github.com/affaan-m/ECC> (MIT).
 - `skills/`, `prompts/` and `rules/` are derived from ECC.
 

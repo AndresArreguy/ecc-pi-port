@@ -1,5 +1,11 @@
 name: Release
 
+# Trusted Publishing (OIDC) — no NPM_TOKEN secret required.
+# Configure once on npmjs.com:
+#   Package → Settings → Trusted Publisher → GitHub Actions
+#   Owner: AndresArreguy · Repository: ecc-pi-port · Workflow: release.yml
+# Then push a tag that matches package.json (e.g. v0.7.1).
+
 on:
   push:
     tags: ["v*"]
@@ -18,7 +24,9 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          registry-url: https://registry.npmjs.org
+
+      - name: Upgrade npm for Trusted Publishing (OIDC)
+        run: npm install -g npm@^11
 
       - name: Cache ECC checkout
         uses: actions/cache@v6
@@ -31,7 +39,16 @@ jobs:
       - name: Bootstrap ECC and build
         run: npm run setup -- --skip-install
 
+      - name: Verify tag matches package.json version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PKG="$(node -p "require('./package.json').version")"
+          if [ "$TAG" != "$PKG" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $PKG" >&2
+            exit 1
+          fi
+
+      # npm publish runs prepublishOnly (verify + release-check) and prepack.
+      # Authentication comes from the GitHub OIDC token (id-token: write).
       - name: Publish to npm
         run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

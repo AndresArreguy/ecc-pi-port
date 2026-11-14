@@ -16,9 +16,11 @@ como un paquete real de Pi.
 [![Stars](https://img.shields.io/github/stars/AndresArreguy/ecc-pi-port?style=social)](https://github.com/AndresArreguy/ecc-pi-port)
 
 - **Fuente ECC:** [`affaan-m/ECC`](https://github.com/affaan-m/ECC) v2.2.3 (MIT, © 2026 Affaan Mustafa).
-- **Este port:** adaptadores, generadores, empaquetado y docs (MIT, © 2026 BaráDev).
+- **Este port:** adaptadores, generadores, empaquetado y docs (MIT, © 2026 Andres Arreguy).
 - `skills/`, `prompts/` y `rules/` generadas son contenido curado de ECC bajo la
   misma licencia MIT. Ver [`LICENSE`](LICENSE).
+
+Mantenido por [Andres Arreguy](https://github.com/AndresArreguy).
 
 > Estado y pendientes: [`docs/pi-port/STATUS.md`](docs/pi-port/STATUS.md).
 > Checklist de seguridad: [`SECURITY.md`](SECURITY.md).
@@ -329,7 +331,7 @@ ecc-pi-port/
 
 MIT. Ver [`LICENSE`](LICENSE):
 
-- Port: © 2026 BaráDev.
+- Port: © 2026 Andres Arreguy.
 - ECC: © 2026 Affaan Mustafa — <https://github.com/affaan-m/ECC> (MIT).
 - `skills/`, `prompts/` y `rules/` derivan de ECC.
 
