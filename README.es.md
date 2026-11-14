@@ -10,6 +10,7 @@ como un paquete real de Pi.
 [![CI](https://github.com/AndresArreguy/ecc-pi-port/actions/workflows/ci.yml/badge.svg)](https://github.com/AndresArreguy/ecc-pi-port/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/ecc-pi-port?logo=npm)](https://www.npmjs.com/package/ecc-pi-port)
 [![npm downloads](https://img.shields.io/npm/dm/ecc-pi-port)](https://www.npmjs.com/package/ecc-pi-port)
+[![Install with Pi](https://img.shields.io/badge/install-pi%20install%20npm%3Aecc--pi--port-8A2BE2)](https://www.npmjs.com/package/ecc-pi-port)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Pi package](https://img.shields.io/badge/Pi-package-8A2BE2)](https://pi.dev/packages)
 [![ECC](https://img.shields.io/badge/ECC-v2.2.3-orange)](https://github.com/affaan-m/ECC)
@@ -29,8 +30,8 @@ Mantenido por [Andres Arreguy](https://github.com/AndresArreguy).
 ## ¿Es realmente un paquete de Pi?
 
 Sí. `package.json` declara el manifest `pi` (`extensions`, `skills`, `prompts`),
-la keyword `pi-package` y las peer dependencies de Pi. Una vez publicado se
-instala con `pi install npm:ecc-pi-port` y es elegible para la
+la keyword `pi-package` y las peer dependencies de Pi. Está publicado como
+`ecc-pi-port` y se instala con `pi install npm:ecc-pi-port`; es elegible para la
 [galería de paquetes de Pi](https://pi.dev/packages).
 
 ## Requisitos
