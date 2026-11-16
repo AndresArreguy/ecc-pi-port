@@ -100,7 +100,7 @@ pi -e .
 | Extensiones | 4 | `ecc-hooks`, `ecc-rules`, `ecc-agents`, `ecc-sdd`. |
 | Agentes | 6 | `planner`, `code-reviewer`, `security-reviewer`, `build-error-resolver`, `tdd-guide`, `architect` vía tool `run_agent`. |
 | Hooks | 5 activos / 4 opcionales | `session:start`, `session:end:marker`, `pre:bash:dispatcher`, `post:quality-gate`, `stop:format-typecheck`. |
-| Flujo SDD | 6 comandos | `/sdd-model`, `/sdd-spec`, `/sdd-plan`, `/sdd-implement`, `/sdd-review`, `/sdd-verify`. |
+| Flujo SDD | 7 comandos | `/sdd-model` (alias `/sdd-models`), `/sdd-spec`, `/sdd-plan`, `/sdd-implement`, `/sdd-review`, `/sdd-verify`. |
 
 ### Comandos
 
@@ -161,7 +161,12 @@ provider/model/thinking por agente).
 ### Flujo SDD
 
 `config/sdd-models.json` elige provider/model/thinking por fase (`spec`, `plan`,
-`implement`, `review`, `verify`, `light`). Los artefactos van a
+`implement`, `review`, `verify`, `light`). `/sdd-model` (alias `/sdd-models`)
+abre una pantalla única con todas las fases y su modelo/thinking (`Ctrl+S`
+guarda, `Ctrl+P` guarda un perfil con nombre); los perfiles también se manejan
+con `/sdd-model save|load|delete|profiles`. La UI sigue el locale del sistema,
+`language` del config o `ECC_PI_SDD_LANG` (`auto|es|en`), y
+`/sdd-model language` lo cambia. Los artefactos van a
 `specs/<feature>/` (`spec.md`, `plan.md`, `tasks.md`, `review.md`, `verify.md`,
 `costs.md`).
 

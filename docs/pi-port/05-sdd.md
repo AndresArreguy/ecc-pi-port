@@ -33,14 +33,89 @@ Phases and configured models used in validation (provider `commandcode`, discove
 
 Aliases: `architecture/specify/planning/implementation/verification` → canonical phases.
 
+### Profiles (named presets)
+
+The same file stores named presets under `profiles` and the last loaded preset in
+`activeProfile`:
+
+```json
+{
+  "activeProfile": "barato",
+  "phases": { "spec": { "provider": "commandcode", "model": "m1", "thinking": "high" } },
+  "phaseAliases": { "architecture": "plan" },
+  "profiles": {
+    "barato": {
+      "updatedAt": "2026-11-16T12:00:00.000Z",
+      "phases": {
+        "spec": { "provider": "commandcode", "model": "cheap", "thinking": "low" },
+        "implement": { "provider": "commandcode", "model": "cheaper", "thinking": "low" }
+      }
+    }
+  }
+}
+```
+
+- Saving a profile snapshots the current `phases`; later edits to the live config do
+  not mutate the preset (deep copy).
+- Loading a profile merges its phases into the live config and marks it active.
+  Phases missing from the preset are left untouched.
+- Profile names are case-insensitive for lookup and keep the stored casing.
+- `ECC_PI_SDD_CONFIG` overrides the config path (useful for tests and per-project setups).
+
+### Language
+
+Pi has no TUI locale, so the extension resolves its own language:
+
+```text
+ECC_PI_SDD_LANG  >  language in config/sdd-models.json  >  system locale
+```
+
+- `language` accepts `auto`, `es`, or `en`; `auto` (default) detects `LANG`/`LC_ALL`
+  and falls back to `Intl.DateTimeFormat().resolvedOptions().locale`.
+- Spanish locales resolve to Spanish; every other locale resolves to English.
+- UI chrome, notifications and validation messages are translated. Phase names
+  (`spec`, `implement`, …) and profile names are data and stay unchanged.
+
 ## Commands
 
-- `/sdd-model` — show config, or set/clear: `/sdd-model <phase> <provider> <model> [thinking]`, `/sdd-model <phase> clear`.
+- `/sdd-model` (alias `/sdd-models`) — interactive menu when UI is available:
+  edit all phases on one screen, load/save/delete profiles, or show the config.
+- `/sdd-model profiles` — list saved profiles with a compact phase summary.
+- `/sdd-model save <name>` — save the current phases as a named profile and activate it.
+- `/sdd-model load <name>` — load and activate a saved profile.
+- `/sdd-model delete <name>` — delete a saved profile.
+- `/sdd-model language [auto|es|en]` — show or change the UI language (`lang` and
+  `idioma` are accepted aliases).
+- `/sdd-model <phase> <provider> <model> [thinking]` — set one phase (also clears
+  `activeProfile`, because the config no longer matches a preset exactly).
+- `/sdd-model <phase> clear` — remove the provider/model/thinking override for a phase.
 - `/sdd-spec <feature> <request...>` — switch to `spec` model, prompt phase, target `specs/<feature>/spec.md`.
 - `/sdd-plan <feature>` — switch to `plan` model, read prior artifact(s), target `plan.md` + `tasks.md`.
 - `/sdd-implement <feature> [focus]` — switch to `implement` model, task-by-task execution from `tasks.md`, tests-before-code, mark `- [ ]` → `- [x]` in `tasks.md`.
 - `/sdd-review <feature>` — switch to `review` model, capture git diff, contrast diff vs `spec.md`/`plan.md` (edge cases, constraints, invented dependencies), target `review.md`.
 - `/sdd-verify <feature> [focus]` — switch to `verify` model, run checks against spec/plan/tasks/review, target `verify.md`.
+
+### Single-screen editor
+
+With a TUI, choosing “Editar modelos por fase (pantalla única)” renders every phase
+(`spec`, `plan`, `implement`, `review`, `verify`, `light`) with its model and thinking
+level. Navigation and shortcuts:
+
+| Key | Action |
+|---|---|
+| `↑` / `↓` | Move between phases |
+| `←` / `→` or `Shift+Tab` / `Tab` | Move between the Model and Thinking columns |
+| `Enter` | Edit the selected cell (searchable model picker or thinking list) |
+| `Ctrl+S` | Persist the live config to `config/sdd-models.json` |
+| `Ctrl+P` | Save the current config as a named profile (inline name input) |
+| `Esc` | Close the editor; unsaved edits are discarded (with a warning) |
+
+The editor follows the resolved language. The main menu also has an
+`Idioma / Language…` entry that persists the choice in `config/sdd-models.json`.
+
+The model picker supports fuzzy search, “sin override”, and a manual
+`provider/model` entry for models missing from the registry. Escaping with unsaved
+changes does not autosave; `Ctrl+S` is the explicit save.
 
 Feature names are slugified and used as `specs/<feature>/...`; current feature is persisted in `specs/.sdd-state.json` (project cwd).
 
@@ -103,7 +178,10 @@ For each phase command, the extension:
 
 ## How to run
 
-1. Configure phases: `/sdd-model` or edit `config/sdd-models.json`.
+1. Configure phases: `/sdd-model` (or `/sdd-models`) on one screen, or edit
+   `config/sdd-models.json`. Save/load named presets with `Ctrl+P` in the editor or
+   `/sdd-model save|load|delete|profiles`. Change the language with
+   `/sdd-model language auto|es|en`.
 2. Start Pi with extension: `pi -e ./extensions/ecc-sdd.ts` (from repo/project context).
 3. Run phases (example): `/sdd-spec <feature> <request>`, `/sdd-plan <feature>`, `/sdd-implement <feature>`, `/sdd-review <feature>`, `/sdd-verify <feature>`.
 4. Inspect outputs in `specs/<feature>/` (`spec.md`, `plan.md`, `tasks.md`, `review.md`, `verify.md`, `costs.md`).

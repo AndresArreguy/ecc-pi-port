@@ -1,5 +1,15 @@
 # Changelog
 
+## [Unreleased]
+
+- `/sdd-model` (alias `/sdd-models`) ahora edita **todas las fases en una sola pantalla**: una fila por fase (`spec`, `plan`, `implement`, `review`, `verify`, `light`) con columnas de modelo y thinking.
+- `Ctrl+S` guarda la configuración activa; `Ctrl+P` guarda el estado actual como **perfil con nombre** desde la misma pantalla. `Esc` cierra sin autoguardar.
+- Perfiles/presets persistentes en `config/sdd-models.json` (`profiles`, `activeProfile`): guardar, cargar, listar y eliminar desde el menú o con `/sdd-model save|load|delete|profiles`.
+- El selector de modelo permite búsqueda fuzzy, "sin override" y entrada manual `provider/model`.
+- `ECC_PI_SDD_CONFIG` permite apuntar la config a otra ruta (tests/proyectos).
+- **i18n propia** para la UI de SDD: `auto | es | en` con precedencia `ECC_PI_SDD_LANG` > `language` del config > locale del sistema. Pi no tiene locale de TUI, así que se detecta con `LANG`/`LC_ALL` e `Intl`; locales `es*` → español, el resto → inglés. Se cambia desde el menú (`Idioma / Language…`) o con `/sdd-model language auto|es|en`.
+- Nueva lógica pura en `lib/ecc-sdd-config.ts` con tests de normalización, snapshots de perfiles y resúmenes. Los errores de perfiles ahora son códigos traducibles en `lib/ecc-sdd-i18n.ts`.
+
 ## [0.7.1] - 2026-11-16
 
 - `run_agent` funciona con el modelo barato de la sesión: el orquestador ahora agrega un **contrato de runtime** al system prompt de cada agente (tools reales en minúscula, `read`/`grep`/`find`/`ls`, se invocan como llamada y no escribiendo XML/JSON) y recuerda lo mismo en el prompt de la tarea. Sin eso, un modelo barato imprimía el llamado de tool como texto y el turno terminaba sin leer ni responder.

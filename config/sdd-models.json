@@ -1,45 +1,47 @@
 {
-  "description": "Model configuration for ECC SDD (spec-driven development) phases in Pi. Set provider/model/thinking per phase; values are not hardcoded. Use /sdd-model to view/update.",
+  "description": "Model configuration for ECC SDD (spec-driven development) phases in Pi. Edit all phases on one screen with /sdd-model (alias /sdd-models), save/load named profiles, and switch language with auto|es|en.",
+  "language": "auto",
+  "activeProfile": "stock cmdc",
   "phases": {
     "spec": {
       "provider": "commandcode",
-      "model": "claude-opus-4-8",
+      "model": "deepseek/deepseek-v4.1-flash",
       "thinking": "high",
       "tier": "strong",
       "notes": "Spec definition (strong model)."
     },
     "plan": {
       "provider": "commandcode",
-      "model": "claude-opus-4-8",
+      "model": "deepseek/deepseek-v4.1-flash",
       "thinking": "high",
       "tier": "strong",
       "notes": "Planning and architecture (strong model)."
     },
     "implement": {
       "provider": "commandcode",
-      "model": "deepseek/deepseek-v4.1-flash-fast",
-      "thinking": null,
+      "model": "deepseek/deepseek-v4.1-flash",
+      "thinking": "high",
       "tier": "cheap-cache",
       "notes": "Implementation (cheap model with good cache pricing). Different family from review/verify."
     },
     "review": {
       "provider": "commandcode",
-      "model": "gpt-5.4",
-      "thinking": "medium",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "thinking": "high",
       "tier": "different-family-than-implement",
       "notes": "Review (different model family than implementation/DeepSeek)."
     },
     "verify": {
       "provider": "commandcode",
-      "model": "google/gemini-3.5-flash",
+      "model": "claude-haiku-5-5",
       "thinking": "medium",
       "tier": "different-family-than-implement",
       "notes": "Verification (different model family than implementation/DeepSeek)."
     },
     "light": {
       "provider": "commandcode",
-      "model": "gpt-5.4-mini",
-      "thinking": "low",
+      "model": "claude-haiku-5-5",
+      "thinking": "medium",
       "tier": "minimal",
       "notes": "Light tasks: explore repo, summarize, commits (minimal model)."
     }
@@ -50,5 +52,54 @@
     "planning": "plan",
     "implementation": "implement",
     "verification": "verify"
+  },
+  "profiles": {
+    "stock cmdc": {
+      "updatedAt": "2026-11-16T16:53:15.827Z",
+      "phases": {
+        "spec": {
+          "provider": "commandcode",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "thinking": "high",
+          "tier": "strong",
+          "notes": "Spec definition (strong model)."
+        },
+        "plan": {
+          "provider": "commandcode",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "thinking": "high",
+          "tier": "strong",
+          "notes": "Planning and architecture (strong model)."
+        },
+        "implement": {
+          "provider": "commandcode",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "thinking": "high",
+          "tier": "cheap-cache",
+          "notes": "Implementation (cheap model with good cache pricing). Different family from review/verify."
+        },
+        "review": {
+          "provider": "commandcode",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "thinking": "high",
+          "tier": "different-family-than-implement",
+          "notes": "Review (different model family than implementation/DeepSeek)."
+        },
+        "verify": {
+          "provider": "commandcode",
+          "model": "claude-haiku-5-5",
+          "thinking": "medium",
+          "tier": "different-family-than-implement",
+          "notes": "Verification (different model family than implementation/DeepSeek)."
+        },
+        "light": {
+          "provider": "commandcode",
+          "model": "claude-haiku-5-5",
+          "thinking": "medium",
+          "tier": "minimal",
+          "notes": "Light tasks: explore repo, summarize, commits (minimal model)."
+        }
+      }
+    }
   }
 }

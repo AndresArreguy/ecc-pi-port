@@ -100,7 +100,7 @@ pi -e .
 | Extensions | 4 | `ecc-hooks`, `ecc-rules`, `ecc-agents`, `ecc-sdd`. |
 | Agents | 6 | `planner`, `code-reviewer`, `security-reviewer`, `build-error-resolver`, `tdd-guide`, `architect` via the `run_agent` tool. |
 | Hooks | 5 on / 4 optional | `session:start`, `session:end:marker`, `pre:bash:dispatcher`, `post:quality-gate`, `stop:format-typecheck`. |
-| SDD flow | 6 commands | `/sdd-model`, `/sdd-spec`, `/sdd-plan`, `/sdd-implement`, `/sdd-review`, `/sdd-verify`. |
+| SDD flow | 7 commands | `/sdd-model` (`/sdd-models` alias), `/sdd-spec`, `/sdd-plan`, `/sdd-implement`, `/sdd-review`, `/sdd-verify`. |
 
 ### Commands
 
@@ -161,9 +161,14 @@ provider/model/thinking per agent).
 ### SDD flow
 
 `config/sdd-models.json` selects provider/model/thinking per phase
-(`spec`, `plan`, `implement`, `review`, `verify`, `light`). Artifacts are written
-to `specs/<feature>/` (`spec.md`, `plan.md`, `tasks.md`, `review.md`,
-`verify.md`, `costs.md`).
+(`spec`, `plan`, `implement`, `review`, `verify`, `light`). `/sdd-model` (alias
+`/sdd-models`) opens a single screen with every phase and its model/thinking
+(`Ctrl+S` saves, `Ctrl+P` saves a named profile); profiles can also be managed
+with `/sdd-model save|load|delete|profiles`. The UI follows the system locale,
+`language` in the config, or `ECC_PI_SDD_LANG` (`auto|es|en`), and
+`/sdd-model language` switches it. Artifacts are written to
+`specs/<feature>/` (`spec.md`, `plan.md`, `tasks.md`, `review.md`, `verify.md`,
+`costs.md`).
 
 ## What's NOT included
 

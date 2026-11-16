@@ -1,0 +1,297 @@
+/**
+ * Tiny i18n layer for the SDD model UI.
+ *
+ * Pi has no locale/language setting, so the extension resolves its own:
+ * `ECC_PI_SDD_LANG` > `language` in config > system locale.
+ */
+
+export type SddLanguage = "auto" | "es" | "en";
+export type ResolvedLanguage = "es" | "en";
+
+export const SDD_LANGUAGES: readonly SddLanguage[] = ["auto", "es", "en"];
+
+export function isSddLanguage(value: unknown): value is SddLanguage {
+  return typeof value === "string" && (SDD_LANGUAGES as readonly string[]).includes(value.toLowerCase());
+}
+
+const es = {
+  "menu.titleActive": "SDD Models — perfil activo: {name}",
+  "menu.titleNoActive": "SDD Models — sin perfil activo",
+  "menu.edit": "Editar modelos por fase (pantalla única)",
+  "menu.load": "Cargar perfil guardado",
+  "menu.loadCount": "Cargar perfil guardado ({count})",
+  "menu.saveAs": "Guardar perfil actual como…",
+  "menu.view": "Ver configuración actual",
+  "menu.delete": "Eliminar perfil…",
+  "menu.language": "Idioma / Language…",
+  "menu.exit": "Salir",
+  "menu.closed": "SDD model: selector cerrado.",
+
+  "common.back": "Volver",
+  "common.cancelled": "Cancelado",
+  "common.none": "(ninguno)",
+
+  "profile.noProfiles": "No hay perfiles guardados. Usá 'Guardar perfil actual como…'.",
+  "profile.noProfilesCli": "No hay perfiles guardados. Guardá uno con /sdd-model save <nombre>.",
+  "profile.listTitle": "Perfiles guardados (Enter carga y activa)",
+  "profile.listHeader": "Perfiles guardados:",
+  "profile.loaded": 'Perfil "{name}" cargado y activo.',
+  "profile.saved": 'Perfil "{name}" guardado y activo.',
+  "profile.deleted": 'Perfil "{name}" eliminado.',
+  "profile.namePrompt": "Nombre del perfil:",
+  "profile.namePlaceholder": "mi-perfil",
+  "profile.deleteTitle": "Perfil a eliminar",
+  "profile.deleteConfirmTitle": '¿Eliminar el perfil "{name}"?',
+  "profile.deleteConfirmMessage": "Esta acción no se puede deshacer.",
+  "profile.notFound": 'el perfil "{name}" no existe',
+  "profile.saveFailed": "no se pudo guardar el perfil",
+  "profile.summaryOnePhase": "1 fase",
+  "profile.summaryPhases": "{count} fases",
+
+  "validate.nameEmpty": "el nombre no puede estar vacío",
+  "validate.nameTooLong": "el nombre supera {max} caracteres",
+  "validate.nameInvalidChars": "el nombre no puede contener '/' ni caracteres de control",
+  "validate.nameReserved": "ese nombre está reservado",
+
+  "config.header": "SDD model config (config/sdd-models.json):",
+  "config.activeProfile": "Perfil activo: {name}",
+  "config.none": "(ninguno)",
+  "config.aliases": "aliases: {list}",
+  "config.profiles": "Perfiles guardados: {list}",
+  "config.profileLine": "  - {name}: {summary}",
+
+  "editor.title": "SDD Models — modelos por fase",
+  "editor.profile": "Perfil: {name}",
+  "editor.profileCustom": "Perfil: (personalizado)",
+  "editor.unsaved": "  · cambios sin guardar",
+  "editor.headerPhase": "  Fase",
+  "editor.headerModel": "Modelo",
+  "editor.headerThinking": "Thinking",
+  "editor.overrideNone": "(sin override)",
+  "editor.tableHints": "↑↓ fase · ←→ columna · Enter editar · Ctrl+S guardar · Ctrl+P guardar perfil · Esc cerrar",
+  "editor.modelPickerHints": "↑↓ navegar · Enter elegir · Esc volver · Ctrl+S guardar",
+  "editor.thinkingPickerHints": "↑↓ navegar · Enter elegir · Esc volver",
+  "editor.profileInputHints": "Enter guardar perfil · Esc cancelar",
+  "editor.manualModelHints": "Enter aplicar · Esc cancelar",
+  "editor.statusProfileActive": "Perfil activo: {name}",
+  "editor.statusNoProfile": "Sin perfil activo (configuración actual)",
+  "editor.statusSavedConfig": "Guardado en config/sdd-models.json",
+  "editor.statusSavedProfileActive": "Guardado · perfil activo: {name}",
+  "editor.statusProfileNameHint": "Nombre del perfil (Enter guarda, Esc cancela)",
+  "editor.statusManualHint": "Escribí provider/modelo (Enter aplica, Esc cancela)",
+  "editor.statusManualInvalid": "Formato inválido; usá provider/modelo",
+  "editor.statusModelSet": "Modelo de {phase}: {model}",
+  "editor.statusModelCleared": "Modelo de {phase} limpiado (sin override)",
+  "editor.statusThinkingSet": "Thinking de {phase}: {value}",
+  "editor.statusNoPhases": "No hay fases configuradas.",
+  "editor.discarded": "SDD model: cambios descartados (usá Ctrl+S para guardar).",
+  "editor.pickerModelTitle": "Modelo para {phase}",
+  "editor.pickerThinkingTitle": "Thinking para {phase}",
+  "editor.current": "Actual: {value}",
+  "editor.search": "Buscar:",
+  "editor.saveProfileTitle": "Guardar perfil de modelos",
+  "editor.manualModelTitle": "Modelo manual para {phase}",
+  "editor.saveProfileDescription": "Se guardan todas las fases con sus modelos y thinking.",
+  "editor.manualModelDescription": "Formato: provider/modelo",
+  "editor.nameLabel": "Nombre:",
+  "editor.manualLabel": "Provider/modelo:",
+  "editor.optionClear": "— sin override (usar el modelo de la sesión) —",
+  "editor.optionClearDesc": "Quita provider/model de esta fase",
+  "editor.optionManual": "Escribir provider/modelo…",
+  "editor.optionManualDesc": "Para modelos que no aparecen en el registry",
+  "editor.thinkingNull": "null (nivel por defecto)",
+
+  "language.title": "Idioma / Language",
+  "language.auto": "Automático (según el sistema)",
+  "language.es": "Español",
+  "language.en": "English",
+  "language.current": "Idioma actual: {value}",
+  "language.changed": "Idioma: {value}",
+  "language.usage": "Usage: /sdd-model language auto|es|en",
+
+  "cli.usage":
+    "Usage: /sdd-model [profiles|save <nombre>|load <nombre>|delete <nombre>|language <auto|es|en>] | /sdd-model <phase> <provider> <model> [thinking] | /sdd-model <phase> clear | /sdd-model",
+  "cli.unknownPhase": "Fase desconocida '{phase}'. Fases conocidas: {list}",
+  "cli.cleared": "Configuración de modelo limpiada para la fase '{phase}'.",
+  "cli.set": "Fase {phase}: provider={provider} model={model} thinking={thinking}",
+} as const;
+
+export type SddStringKey = keyof typeof es;
+export type Translator = (key: SddStringKey, vars?: Record<string, string | number>) => string;
+
+const en: Record<SddStringKey, string> = {
+  "menu.titleActive": "SDD Models — active profile: {name}",
+  "menu.titleNoActive": "SDD Models — no active profile",
+  "menu.edit": "Edit phase models (single screen)",
+  "menu.load": "Load saved profile",
+  "menu.loadCount": "Load saved profile ({count})",
+  "menu.saveAs": "Save current profile as…",
+  "menu.view": "View current configuration",
+  "menu.delete": "Delete profile…",
+  "menu.language": "Language / Idioma…",
+  "menu.exit": "Exit",
+  "menu.closed": "SDD model: selector closed.",
+
+  "common.back": "Back",
+  "common.cancelled": "Cancelled",
+  "common.none": "(none)",
+
+  "profile.noProfiles": "No saved profiles. Use 'Save current profile as…'.",
+  "profile.noProfilesCli": "No saved profiles. Save one with /sdd-model save <name>.",
+  "profile.listTitle": "Saved profiles (Enter loads and activates)",
+  "profile.listHeader": "Saved profiles:",
+  "profile.loaded": 'Profile "{name}" loaded and active.',
+  "profile.saved": 'Profile "{name}" saved and active.',
+  "profile.deleted": 'Profile "{name}" deleted.',
+  "profile.namePrompt": "Profile name:",
+  "profile.namePlaceholder": "my-profile",
+  "profile.deleteTitle": "Profile to delete",
+  "profile.deleteConfirmTitle": 'Delete profile "{name}"?',
+  "profile.deleteConfirmMessage": "This action cannot be undone.",
+  "profile.notFound": 'profile "{name}" does not exist',
+  "profile.saveFailed": "could not save the profile",
+  "profile.summaryOnePhase": "1 phase",
+  "profile.summaryPhases": "{count} phases",
+
+  "validate.nameEmpty": "name cannot be empty",
+  "validate.nameTooLong": "name exceeds {max} characters",
+  "validate.nameInvalidChars": "name cannot contain '/' or control characters",
+  "validate.nameReserved": "that name is reserved",
+
+  "config.header": "SDD model config (config/sdd-models.json):",
+  "config.activeProfile": "Active profile: {name}",
+  "config.none": "(none)",
+  "config.aliases": "aliases: {list}",
+  "config.profiles": "Saved profiles: {list}",
+  "config.profileLine": "  - {name}: {summary}",
+
+  "editor.title": "SDD Models — phase models",
+  "editor.profile": "Profile: {name}",
+  "editor.profileCustom": "Profile: (custom)",
+  "editor.unsaved": "  · unsaved changes",
+  "editor.headerPhase": "  Phase",
+  "editor.headerModel": "Model",
+  "editor.headerThinking": "Thinking",
+  "editor.overrideNone": "(no override)",
+  "editor.tableHints": "↑↓ phase · ←→ column · Enter edit · Ctrl+S save · Ctrl+P save profile · Esc close",
+  "editor.modelPickerHints": "↑↓ navigate · Enter select · Esc back · Ctrl+S save",
+  "editor.thinkingPickerHints": "↑↓ navigate · Enter select · Esc back",
+  "editor.profileInputHints": "Enter save profile · Esc cancel",
+  "editor.manualModelHints": "Enter apply · Esc cancel",
+  "editor.statusProfileActive": "Active profile: {name}",
+  "editor.statusNoProfile": "No active profile (current configuration)",
+  "editor.statusSavedConfig": "Saved to config/sdd-models.json",
+  "editor.statusSavedProfileActive": "Saved · active profile: {name}",
+  "editor.statusProfileNameHint": "Profile name (Enter saves, Esc cancels)",
+  "editor.statusManualHint": "Type provider/model (Enter applies, Esc cancels)",
+  "editor.statusManualInvalid": "Invalid format; use provider/model",
+  "editor.statusModelSet": "Model for {phase}: {model}",
+  "editor.statusModelCleared": "Model for {phase} cleared (no override)",
+  "editor.statusThinkingSet": "Thinking for {phase}: {value}",
+  "editor.statusNoPhases": "No phases configured.",
+  "editor.discarded": "SDD model: changes discarded (use Ctrl+S to save).",
+  "editor.pickerModelTitle": "Model for {phase}",
+  "editor.pickerThinkingTitle": "Thinking for {phase}",
+  "editor.current": "Current: {value}",
+  "editor.search": "Search:",
+  "editor.saveProfileTitle": "Save model profile",
+  "editor.manualModelTitle": "Manual model for {phase}",
+  "editor.saveProfileDescription": "All phases are saved with their models and thinking.",
+  "editor.manualModelDescription": "Format: provider/model",
+  "editor.nameLabel": "Name:",
+  "editor.manualLabel": "Provider/model:",
+  "editor.optionClear": "— no override (use the session model) —",
+  "editor.optionClearDesc": "Removes provider/model from this phase",
+  "editor.optionManual": "Type provider/model…",
+  "editor.optionManualDesc": "For models missing from the registry",
+  "editor.thinkingNull": "null (default level)",
+
+  "language.title": "Language / Idioma",
+  "language.auto": "Automatic (system)",
+  "language.es": "Español",
+  "language.en": "English",
+  "language.current": "Current language: {value}",
+  "language.changed": "Language: {value}",
+  "language.usage": "Usage: /sdd-model language auto|es|en",
+
+  "cli.usage":
+    "Usage: /sdd-model [profiles|save <name>|load <name>|delete <name>|language <auto|es|en>] | /sdd-model <phase> <provider> <model> [thinking] | /sdd-model <phase> clear | /sdd-model",
+  "cli.unknownPhase": "Unknown phase '{phase}'. Known phases: {list}",
+  "cli.cleared": "Cleared model config for phase '{phase}'.",
+  "cli.set": "Phase {phase}: provider={provider} model={model} thinking={thinking}",
+};
+
+export const SDD_STRINGS: Record<ResolvedLanguage, Record<SddStringKey, string>> = { es, en };
+
+/** Detect the system language, defaulting to English for non-Spanish locales. */
+export function detectSystemLanguage(
+  env: NodeJS.ProcessEnv = process.env,
+  locale?: string,
+): ResolvedLanguage {
+  let intlLocale = locale;
+  if (!intlLocale) {
+    try {
+      intlLocale = Intl.DateTimeFormat().resolvedOptions().locale;
+    } catch {
+      intlLocale = undefined;
+    }
+  }
+
+  const candidates = [
+    env.LC_ALL,
+    env.LC_MESSAGES,
+    env.LANG,
+    env.LANGUAGE,
+    intlLocale,
+  ];
+
+  for (const candidate of candidates) {
+    const value = String(candidate ?? "").trim().toLowerCase();
+    if (!value || value === "c" || value === "posix") continue;
+    if (value.startsWith("es")) return "es";
+    if (/^[a-z]{2}/.test(value)) return "en";
+  }
+  return "en";
+}
+
+function normalizePreference(value: unknown): SddLanguage | null {
+  const normalized = String(value ?? "").trim().toLowerCase();
+  return isSddLanguage(normalized) ? normalized : null;
+}
+
+/**
+ * Resolve the language with precedence: env override > config > system.
+ * `auto` (or an invalid value) delegates to the next source.
+ */
+export function resolveLanguage(
+  preference?: string | null,
+  env: NodeJS.ProcessEnv = process.env,
+  locale?: string,
+): ResolvedLanguage {
+  const envPreference = normalizePreference(env.ECC_PI_SDD_LANG);
+  if (envPreference === "es" || envPreference === "en") return envPreference;
+
+  const configPreference = normalizePreference(preference);
+  if (configPreference === "es" || configPreference === "en") return configPreference;
+
+  return detectSystemLanguage(env, locale);
+}
+
+/** Build a translator for a resolved language with `{placeholder}` interpolation. */
+export function createTranslator(lang: ResolvedLanguage): Translator {
+  const dictionary = SDD_STRINGS[lang] ?? SDD_STRINGS.en;
+  return (key, vars) => {
+    const template = dictionary[key] ?? SDD_STRINGS.en[key] ?? key;
+    return template.replace(/\{(\w+)\}/g, (match, name) => {
+      if (!vars || !(name in vars)) return match;
+      return String(vars[name]);
+    });
+  };
+}
+
+/** Human label for a stored preference (`auto`, `es`, `en`). */
+export function languageLabel(t: Translator, value: SddLanguage | undefined | null): string {
+  if (value === "es") return t("language.es");
+  if (value === "en") return t("language.en");
+  return t("language.auto");
+}

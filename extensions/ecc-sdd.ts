@@ -2,21 +2,60 @@ import { execFile } from "node:child_process";
 import * as fs from "node:fs";
 import * as path from "node:path";
 import { promisify } from "node:util";
-import { Container, Input, SelectList, Spacer, Text, fuzzyFilter, getKeybindings } from "@earendil-works/pi-tui";
+import {
+  Input,
+  SelectList,
+  fuzzyFilter,
+  matchesKey,
+  truncateToWidth,
+  visibleWidth,
+} from "@earendil-works/pi-tui";
 import { getSelectListTheme } from "@earendil-works/pi-coding-agent";
 import { fileURLToPath } from "node:url";
+import {
+  THINKING_VALUES,
+  applyProfile,
+  createDefaultConfig,
+  deepClonePhases,
+  deleteProfile,
+  formatConfigSummary,
+  listProfiles,
+  normalizeConfig,
+  phaseList,
+  profileSummary,
+  resolvePhase as resolvePhaseKey,
+  saveProfile,
+  validateProfileName,
+  MAX_PROFILE_NAME_LENGTH,
+  type PhaseModelConfig,
+  type ProfileResult,
+  type SddModelsConfig,
+} from "../lib/ecc-sdd-config.ts";
+import {
+  createTranslator,
+  isSddLanguage,
+  languageLabel,
+  resolveLanguage,
+  type ResolvedLanguage,
+  type SddLanguage,
+  type Translator,
+} from "../lib/ecc-sdd-i18n.ts";
 
 const execFileAsync = promisify(execFile);
 
 interface PiUiContext {
   notify?(message: string, type?: "info" | "warning" | "error"): void;
   select?(title: string, options: string[]): Promise<string | undefined>;
+  input?(title: string, placeholder?: string): Promise<string | undefined>;
+  confirm?(title: string, message: string): Promise<boolean>;
+  custom?(factory: any, options?: any): Promise<any>;
 }
 
 interface ExtensionCommandContext {
   cwd: string;
   ui?: PiUiContext;
   hasUI?: boolean;
+  mode?: string;
   model?: any;
   modelRegistry?: any;
   sendUserMessage?(content: string, options?: any): Promise<void> | void;
@@ -32,20 +71,6 @@ interface ExtensionContext {
 }
 
 type Phase = "spec" | "plan" | "implement" | "review" | "verify" | "light";
-
-interface PhaseModelConfig {
-  provider?: string | null;
-  model?: string | null;
-  thinking?: string | null;
-  tier?: string;
-  notes?: string;
-}
-
-interface SddModelsConfig {
-  description?: string;
-  phases: Record<string, PhaseModelConfig>;
-  phaseAliases?: Record<string, string>;
-}
 
 interface UsageTotals {
   input: number;
@@ -75,7 +100,7 @@ interface PhaseRunState {
   usage: UsageTotals;
 }
 
-const CONFIG_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "config", "sdd-models.json");
+const DEFAULT_CONFIG_PATH = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "config", "sdd-models.json");
 const SPECS_ROOT = "specs";
 const STATE_PATH = path.join(SPECS_ROOT, ".sdd-state.json");
 
@@ -108,28 +133,22 @@ function slugifyFeature(name: string): string {
     .replace(/-{2,}/g, "-") || "feature";
 }
 
+/** Allow tests and power users to point the SDD config somewhere else. */
+function configPath(): string {
+  const override = process.env.ECC_PI_SDD_CONFIG?.trim();
+  return override ? path.resolve(override) : DEFAULT_CONFIG_PATH;
+}
+
 function loadSddConfig(): SddModelsConfig {
-  const cfg = readJson<SddModelsConfig>(CONFIG_PATH, { phases: {} });
-  if (!cfg.phases) cfg.phases = {};
-  if (!cfg.phaseAliases) cfg.phaseAliases = {};
-  return cfg;
+  return normalizeConfig(readJson<unknown>(configPath(), createDefaultConfig()));
 }
 
 function saveSddConfig(cfg: SddModelsConfig) {
-  writeJson(CONFIG_PATH, cfg);
+  writeJson(configPath(), cfg);
 }
 
 function resolvePhase(cfg: SddModelsConfig, input: string): Phase | null {
-  const key = (input || "").trim().toLowerCase();
-  if (!key) return null;
-  if (cfg.phases[key]) return key as Phase;
-  const alias = cfg.phaseAliases?.[key];
-  if (alias && cfg.phases[alias]) return alias as Phase;
-  return null;
-}
-
-function phaseList(cfg: SddModelsConfig): string[] {
-  return Object.keys(cfg.phases);
+  return resolvePhaseKey(cfg, input) as Phase | null;
 }
 
 function getFeatureDir(cwd: string, feature: string): string {
@@ -402,22 +421,6 @@ function phasePrompt(phase: Phase, feature: string, cwd: string, argsRest: strin
   ].join("\n");
 }
 
-function formatConfigSummary(cfg: SddModelsConfig): string {
-  const lines: string[] = ["SDD model config (config/sdd-models.json):"];
-  for (const phase of phaseList(cfg)) {
-    const p = cfg.phases[phase] || {};
-    const prov = p.provider ?? "null";
-    const model = p.model ?? "null";
-    const think = p.thinking ?? "null";
-    lines.push(`- ${phase}: provider=${String(prov)} model=${String(model)} thinking=${String(think)} tier=${p.tier || ""}`);
-  }
-  if (cfg.phaseAliases && Object.keys(cfg.phaseAliases).length) {
-    lines.push(`aliases: ${Object.entries(cfg.phaseAliases).map(([k, v]) => `${k}->${v}`).join(", ")}`);
-  }
-  return lines.join("\n");
-}
-
-
 function getAvailableModelChoices(ctx: ExtensionCommandContext): Array<{ label: string; provider: string; model: string }> {
   const registry = ctx.modelRegistry;
   let models: any[] = [];
@@ -451,212 +454,649 @@ function parseModelLabel(label: string): { provider: string; model: string } | n
   return { provider: label.slice(0, idx), model: label.slice(idx + 1) };
 }
 
-async function pickModelForPhase(
-  ctx: ExtensionCommandContext,
-  phase: string,
-  tier: string,
-  current: PhaseModelConfig,
-  available: Array<{ label: string; provider: string; model: string }>
-): Promise<string | "__cancel__"> {
-  const ui: any = ctx?.ui as any;
-  if (!ui || typeof ui.custom !== "function") return "__cancel__";
+type ModelChoice = { label: string; provider: string; model: string };
 
-  const baseItems = [
-    { value: "__keep__", label: `Mantener actual (${current.provider ?? "null"}/${current.model ?? "null"})`, description: "No cambiar modelo" },
-    { value: "__clear__", label: "Limpiar (sin override)", description: "Quitar provider/model/thinking" },
-    ...available.map((m) => ({ value: m.label, label: m.label, description: "" })),
+type MenuAction = "edit" | "load" | "save" | "view" | "delete" | "language" | "exit";
+
+interface PhaseEditorState {
+  mode: "table" | "model" | "thinking" | "profileName" | "manualModel";
+  row: number;
+  col: 0 | 1;
+  phases: Record<string, PhaseModelConfig>;
+  profile: string | null;
+  dirty: boolean;
+  status: string;
+  statusIsError: boolean;
+  filter: string;
+}
+
+function padCell(text: string, width: number): string {
+  const clipped = truncateToWidth(text, width, "…");
+  return clipped + " ".repeat(Math.max(0, width - visibleWidth(clipped)));
+}
+
+function phaseModelLabel(phase: PhaseModelConfig, t: Translator): string {
+  const provider = typeof phase.provider === "string" ? phase.provider.trim() : "";
+  const model = typeof phase.model === "string" ? phase.model.trim() : "";
+  if (!provider && !model) return t("editor.overrideNone");
+  if (provider && model) return `${provider}/${model}`;
+  return model || provider;
+}
+
+function modelBaseItems(
+  available: ModelChoice[],
+  t: Translator,
+): Array<{ value: string; label: string; description?: string }> {
+  return [
+    {
+      value: "__clear__",
+      label: t("editor.optionClear"),
+      description: t("editor.optionClearDesc"),
+    },
+    {
+      value: "__manual__",
+      label: t("editor.optionManual"),
+      description: t("editor.optionManualDesc"),
+    },
+    ...available.map((m) => ({ value: m.label, label: m.label })),
   ];
+}
 
-  try {
-    const result = await ui.custom(
-      (tui: any, theme: any, _kb: any, done: (v: any) => void) => {
-        const container = new Container();
-        container.addChild(new Text(theme.bold(theme.fg("accent", `Modelo para fase: ${phase}`)), 0, 0));
-        container.addChild(
-          new Text(
-            theme.fg(
-              "muted",
-              `Tier: ${tier || "?"} · ${available.length} modelos · actual: ${current.provider ?? "null"}/${current.model ?? "null"}`
-            ),
-            0,
-            0
-          )
-        );
-        container.addChild(new Spacer(1));
-        container.addChild(new Text(theme.fg("dim", "Buscar:"), 0, 0));
+function buildModelSelectList(
+  items: Array<{ value: string; label: string; description?: string }>,
+  filter: string,
+): SelectList {
+  const query = filter.trim();
+  const filtered = query ? fuzzyFilter(items, query, (item) => `${item.value} ${item.label}`) : items;
+  const list = new SelectList(filtered, Math.min(Math.max(filtered.length, 1), 12), getSelectListTheme());
+  list.setSelectedIndex(0);
+  return list;
+}
 
-        const input = new Input();
-        container.addChild(input);
-        container.addChild(new Spacer(1));
-
-        let filteredItems = baseItems;
-        let selectList: any;
-
-        const buildList = (opts: any[]) => {
-          const list = new SelectList(opts, Math.min(Math.max(opts.length, 1), 14), getSelectListTheme());
-          if (typeof list.setSelectedIndex === "function") list.setSelectedIndex(0);
-          list.onSelect = (item: any) => done(item?.value ?? "__cancel__");
-          list.onCancel = () => done("__cancel__");
-          return list;
-        };
-
-        const applyFilter = (query: string) => {
-          const q = String(query || "").trim();
-          filteredItems = q
-            ? fuzzyFilter(baseItems, q, (item: any) => `${item.label} ${item.description || ""} ${item.value}`)
-            : baseItems;
-
-          let opts = filteredItems;
-          if (opts.length === 0) {
-            opts = [
-              {
-                value: "__nomatch__",
-                label: `(Sin coincidencias para "${q}")`,
-                description: "Seguí tipeando para filtrar",
-              },
-            ];
-          }
-
-          const newList = buildList(opts);
-          // children: [title, subtitle, spacer, searchLabel, input, spacer, selectList, spacer, hint]
-          container.children[container.children.length - 3] = newList;
-          selectList = newList;
-          if (tui?.requestRender) tui.requestRender();
-        };
-
-        selectList = buildList(filteredItems);
-        container.addChild(selectList);
-        container.addChild(new Spacer(1));
-        container.addChild(new Text(theme.fg("dim", "Tipeá para filtrar · ↑↓ navegar · Enter seleccionar · Esc volver"), 0, 0));
-
-        input.onSubmit = () => {
-          if (selectList && typeof selectList.handleInput === "function") selectList.handleInput("\r");
-        };
-
-        container.handleInput = (data: string) => {
-          let isNav = false;
-          try {
-            const kb = typeof getKeybindings === "function" ? getKeybindings() : null;
-            if (kb) {
-              isNav =
-                kb.matches(data, "tui.select.up") ||
-                kb.matches(data, "tui.select.down") ||
-                kb.matches(data, "tui.select.pageUp") ||
-                kb.matches(data, "tui.select.pageDown") ||
-                kb.matches(data, "tui.select.confirm") ||
-                kb.matches(data, "tui.select.cancel");
-            }
-          } catch {
-            isNav = false;
-          }
-
-          if (isNav) {
-            selectList?.handleInput?.(data);
-          } else {
-            input.handleInput(data);
-            const q = typeof input.getValue === "function" ? input.getValue() : "";
-            applyFilter(q);
-          }
-          if (tui?.requestRender) tui.requestRender();
-        };
-
-        (container as any).focused = true;
-        return container;
-      },
-      { overlay: true, overlayOptions: { anchor: "center", width: "80%", maxHeight: "75%" } }
-    );
-
-    if (result == null) return "__cancel__";
-    return String(result);
-  } catch {
-    return "__cancel__";
+function translateProfileError(t: Translator, result: ProfileResult, name: string): string {
+  switch (result.code) {
+    case "name-empty":
+      return t("validate.nameEmpty");
+    case "name-too-long":
+      return t("validate.nameTooLong", { max: MAX_PROFILE_NAME_LENGTH });
+    case "name-invalid-chars":
+      return t("validate.nameInvalidChars");
+    case "name-reserved":
+      return t("validate.nameReserved");
+    case "profile-not-found":
+      return t("profile.notFound", { name });
+    default:
+      return t("profile.saveFailed");
   }
+}
+
+/**
+ * Single-screen editor: every SDD phase with its model and thinking level,
+ * editable in place. Ctrl+S persists the live config, Ctrl+P saves a named
+ * profile, and Esc closes without autosaving.
+ */
+async function editPhasesScreen(
+  ctx: ExtensionCommandContext,
+  available: ModelChoice[],
+  lang: ResolvedLanguage,
+): Promise<"saved" | "discarded" | "closed"> {
+  const t = createTranslator(lang);
+  const ui: any = ctx?.ui as any;
+  if (!ui || typeof ui.custom !== "function" || (ctx.mode && ctx.mode !== "tui")) {
+    notify(ctx, formatConfigSummary(loadSddConfig(), t), "info");
+    return "closed";
+  }
+
+  const result = await ui.custom(
+    (tui: any, theme: any, keybindings: any, done: (value: any) => void) => {
+      const cfg = loadSddConfig();
+      const state: PhaseEditorState = {
+        mode: "table",
+        row: 0,
+        col: 0,
+        phases: deepClonePhases(cfg.phases),
+        profile: cfg.activeProfile || null,
+        dirty: false,
+        status: cfg.activeProfile
+          ? t("editor.statusProfileActive", { name: cfg.activeProfile })
+          : t("editor.statusNoProfile"),
+        statusIsError: false,
+        filter: "",
+      };
+      const rows = Object.keys(state.phases);
+      const modelItems = modelBaseItems(available, t);
+      let modelList: SelectList | null = null;
+      let thinkingList: SelectList | null = null;
+      const textInput = new Input({ placeholder: "" });
+      let textPurpose: "profile" | "manual" | null = null;
+
+      const setStatus = (text: string, isError = false) => {
+        state.status = text;
+        state.statusIsError = isError;
+      };
+
+      const markDirty = () => {
+        state.dirty = true;
+        state.profile = null;
+      };
+
+      const normalizeRow = () => {
+        if (!rows.length) {
+          state.row = 0;
+          return;
+        }
+        if (state.row < 0) state.row = rows.length - 1;
+        if (state.row >= rows.length) state.row = 0;
+      };
+
+      const currentPhase = () => rows[state.row];
+
+      const buildThinkingList = (): SelectList => {
+        const items = THINKING_VALUES.map((value) => ({
+          value,
+          label: value === "null" ? t("editor.thinkingNull") : value,
+        }));
+        const list = new SelectList(items, items.length, getSelectListTheme());
+        const current = state.phases[currentPhase()]?.thinking ?? "null";
+        const index = THINKING_VALUES.indexOf(current as (typeof THINKING_VALUES)[number]);
+        if (index >= 0) list.setSelectedIndex(index);
+        return list;
+      };
+
+      const rebuildModelList = () => {
+        modelList = buildModelSelectList(modelItems, state.filter);
+      };
+
+      const persist = () => {
+        const next = loadSddConfig();
+        next.phases = deepClonePhases(state.phases);
+        next.activeProfile = state.profile;
+        saveSddConfig(next);
+        state.dirty = false;
+        state.status = state.profile
+          ? t("editor.statusSavedProfileActive", { name: state.profile })
+          : t("editor.statusSavedConfig");
+        state.statusIsError = false;
+      };
+
+      const startProfileInput = () => {
+        state.mode = "profileName";
+        textPurpose = "profile";
+        textInput.setValue(state.profile || "");
+        textInput.focused = true;
+        setStatus(t("editor.statusProfileNameHint"));
+        tui.requestRender();
+      };
+
+      const startManualModel = () => {
+        const phase = currentPhase();
+        const current = state.phases[phase] || {};
+        state.mode = "manualModel";
+        textPurpose = "manual";
+        textInput.setValue(current.provider && current.model ? `${current.provider}/${current.model}` : "");
+        textInput.focused = true;
+        setStatus(t("editor.statusManualHint"));
+        tui.requestRender();
+      };
+
+      const commitText = () => {
+        const value = textInput.getValue().trim();
+        const phase = currentPhase();
+        if (textPurpose === "profile") {
+          const valid = validateProfileName(value);
+          if (!valid.ok) {
+            setStatus(translateProfileError(t, { ok: false, code: valid.code }, value), true);
+            tui.requestRender();
+            return;
+          }
+          const next = loadSddConfig();
+          next.phases = deepClonePhases(state.phases);
+          const saved = saveProfile(next, valid.name, state.phases);
+          if (!saved.ok) {
+            setStatus(translateProfileError(t, saved, valid.name), true);
+            tui.requestRender();
+            return;
+          }
+          saveSddConfig(next);
+          state.profile = saved.key || valid.name;
+          state.dirty = false;
+          setStatus(t("profile.saved", { name: state.profile }));
+        } else if (textPurpose === "manualModel") {
+          const parsed = parseModelLabel(value);
+          if (!parsed) {
+            setStatus(t("editor.statusManualInvalid"), true);
+            tui.requestRender();
+            return;
+          }
+          state.phases[phase] = { ...(state.phases[phase] || {}), provider: parsed.provider, model: parsed.model };
+          markDirty();
+          setStatus(t("editor.statusModelSet", { phase, model: `${parsed.provider}/${parsed.model}` }));
+        }
+        state.mode = "table";
+        textPurpose = null;
+        textInput.focused = false;
+      };
+
+      const openModelPicker = () => {
+        state.mode = "model";
+        state.filter = "";
+        textInput.setValue("");
+        textInput.focused = true;
+        rebuildModelList();
+        setStatus(t("editor.pickerModelTitle", { phase: currentPhase() }));
+        tui.requestRender();
+      };
+
+      const openThinkingPicker = () => {
+        state.mode = "thinking";
+        thinkingList = buildThinkingList();
+        setStatus(t("editor.pickerThinkingTitle", { phase: currentPhase() }));
+        tui.requestRender();
+      };
+
+      const applyModelChoice = (value: string) => {
+        const phase = currentPhase();
+        if (value === "__clear__") {
+          state.phases[phase] = { ...(state.phases[phase] || {}), provider: null, model: null };
+          markDirty();
+          setStatus(t("editor.statusModelCleared", { phase }));
+          state.mode = "table";
+          textInput.focused = false;
+        } else if (value === "__manual__") {
+          startManualModel();
+        } else {
+          const parsed = parseModelLabel(value);
+          if (!parsed) {
+            setStatus(t("editor.statusManualInvalid"), true);
+            return;
+          }
+          state.phases[phase] = { ...(state.phases[phase] || {}), provider: parsed.provider, model: parsed.model };
+          markDirty();
+          setStatus(t("editor.statusModelSet", { phase, model: `${parsed.provider}/${parsed.model}` }));
+          state.mode = "table";
+          textInput.focused = false;
+        }
+      };
+
+      const applyThinkingChoice = (value: string) => {
+        const phase = currentPhase();
+        state.phases[phase] = { ...(state.phases[phase] || {}), thinking: value === "null" ? null : value };
+        markDirty();
+        setStatus(t("editor.statusThinkingSet", { phase, value }));
+        state.mode = "table";
+      };
+
+      const renderTable = (width: number): string[] => {
+        const lines: string[] = [];
+        const profileLabel = state.profile
+          ? t("editor.profile", { name: state.profile })
+          : t("editor.profileCustom");
+        lines.push(theme.bold(theme.fg("accent", t("editor.title"))));
+        lines.push(theme.fg("muted", `${profileLabel}${state.dirty ? t("editor.unsaved") : ""}`));
+        lines.push("");
+
+        const phaseWidth = Math.max(9, Math.min(16, Math.max(...rows.map((row) => row.length), 4) + 3));
+        const modelWidth = Math.max(16, Math.min(width - phaseWidth - 12, Math.max(22, Math.floor(width * 0.52))));
+        const thinkingWidth = Math.max(8, width - phaseWidth - modelWidth);
+        lines.push(
+          theme.fg(
+            "dim",
+            truncateToWidth(
+              padCell(t("editor.headerPhase"), phaseWidth) +
+                padCell(t("editor.headerModel"), modelWidth) +
+                padCell(t("editor.headerThinking"), thinkingWidth),
+              width,
+              "",
+            ),
+          ),
+        );
+
+        rows.forEach((phase, index) => {
+          const phaseConfig = state.phases[phase] || {};
+          const isRow = index === state.row;
+          const phaseCell = padCell(`${isRow ? "› " : "  "}${phase}`, phaseWidth);
+          const modelCell = padCell(phaseModelLabel(phaseConfig, t), modelWidth);
+          const thinkingCell = padCell(phaseConfig.thinking ?? "null", thinkingWidth);
+          const styledPhase = isRow ? theme.fg("accent", phaseCell) : phaseCell;
+          const styledModel = isRow && state.col === 0 ? theme.bg("selectedBg", modelCell) : modelCell;
+          const styledThinking = isRow && state.col === 1 ? theme.bg("selectedBg", thinkingCell) : theme.fg("muted", thinkingCell);
+          lines.push(truncateToWidth(styledPhase + styledModel + styledThinking, width, ""));
+        });
+
+        if (!rows.length) lines.push(theme.fg("warning", t("editor.statusNoPhases")));
+        lines.push("");
+        lines.push(theme.fg("dim", truncateToWidth(t("editor.tableHints"), width, "")));
+        if (state.status) {
+          lines.push(theme.fg(state.statusIsError ? "error" : "muted", truncateToWidth(state.status, width, "")));
+        }
+        return lines;
+      };
+
+      const renderPicker = (width: number): string[] => {
+        const isModel = state.mode === "model";
+        const phase = currentPhase();
+        const phaseConfig = state.phases[phase] || {};
+        const lines: string[] = [];
+        lines.push(
+          theme.bold(
+            theme.fg(
+              "accent",
+              isModel
+                ? t("editor.pickerModelTitle", { phase })
+                : t("editor.pickerThinkingTitle", { phase }),
+            ),
+          ),
+        );
+        lines.push(
+          theme.fg(
+            "muted",
+            t("editor.current", {
+              value: isModel ? phaseModelLabel(phaseConfig, t) : phaseConfig.thinking ?? "null",
+            }),
+          ),
+        );
+        lines.push("");
+        if (isModel) {
+          lines.push(theme.fg("dim", t("editor.search")));
+          lines.push(...textInput.render(width));
+          lines.push("");
+        }
+        const list = isModel ? modelList : thinkingList;
+        if (list) lines.push(...list.render(width));
+        lines.push("");
+        lines.push(
+          theme.fg(
+            "dim",
+            truncateToWidth(
+              t(isModel ? "editor.modelPickerHints" : "editor.thinkingPickerHints"),
+              width,
+              "",
+            ),
+          ),
+        );
+        if (state.status) {
+          lines.push(theme.fg(state.statusIsError ? "error" : "muted", truncateToWidth(state.status, width, "")));
+        }
+        return lines;
+      };
+
+      const renderTextMode = (width: number): string[] => {
+        const isProfile = state.mode === "profileName";
+        const lines: string[] = [
+          theme.bold(
+            theme.fg(
+              "accent",
+              isProfile
+                ? t("editor.saveProfileTitle")
+                : t("editor.manualModelTitle", { phase: currentPhase() }),
+            ),
+          ),
+          theme.fg("muted", t(isProfile ? "editor.saveProfileDescription" : "editor.manualModelDescription")),
+          "",
+          theme.fg("dim", t(isProfile ? "editor.nameLabel" : "editor.manualLabel")),
+          ...textInput.render(width),
+          "",
+          theme.fg(
+            "dim",
+            truncateToWidth(t(isProfile ? "editor.profileInputHints" : "editor.manualModelHints"), width, ""),
+          ),
+        ];
+        if (state.status) {
+          lines.push(theme.fg(state.statusIsError ? "error" : "muted", truncateToWidth(state.status, width, "")));
+        }
+        return lines;
+      };
+
+      return {
+        focused: true,
+        invalidate() {},
+        render(width: number): string[] {
+          if (state.mode === "table") return renderTable(width);
+          if (state.mode === "model" || state.mode === "thinking") return renderPicker(width);
+          return renderTextMode(width);
+        },
+        handleInput(data: string): void {
+          const kbMatch = (id: string) => {
+            try {
+              return Boolean(keybindings && typeof keybindings.matches === "function" && keybindings.matches(data, id));
+            } catch {
+              return false;
+            }
+          };
+
+          if (state.mode === "profileName" || state.mode === "manualModel") {
+            if (matchesKey(data, "escape")) {
+              state.mode = "table";
+              textPurpose = null;
+              textInput.focused = false;
+              setStatus(t("common.cancelled"));
+            } else if (matchesKey(data, "enter") || matchesKey(data, "ctrl+s")) {
+              commitText();
+            } else {
+              textInput.handleInput(data);
+            }
+            tui.requestRender();
+            return;
+          }
+
+          if (state.mode === "model") {
+            if (matchesKey(data, "escape")) {
+              state.mode = "table";
+              textInput.focused = false;
+              setStatus(t("editor.pickerModelTitle", { phase: currentPhase() }));
+            } else if (matchesKey(data, "ctrl+s")) {
+              persist();
+            } else if (
+              kbMatch("tui.select.up") ||
+              kbMatch("tui.select.down") ||
+              kbMatch("tui.select.pageUp") ||
+              kbMatch("tui.select.pageDown")
+            ) {
+              modelList?.handleInput(data);
+            } else if (matchesKey(data, "enter")) {
+              const item = modelList?.getSelectedItem();
+              if (item) applyModelChoice(item.value);
+            } else {
+              textInput.handleInput(data);
+              const nextFilter = textInput.getValue();
+              if (nextFilter !== state.filter) {
+                state.filter = nextFilter;
+                rebuildModelList();
+              }
+            }
+            tui.requestRender();
+            return;
+          }
+
+          if (state.mode === "thinking") {
+            if (matchesKey(data, "escape")) {
+              state.mode = "table";
+              setStatus(t("editor.pickerThinkingTitle", { phase: currentPhase() }));
+            } else if (matchesKey(data, "ctrl+s")) {
+              persist();
+            } else if (
+              kbMatch("tui.select.up") ||
+              kbMatch("tui.select.down") ||
+              kbMatch("tui.select.pageUp") ||
+              kbMatch("tui.select.pageDown")
+            ) {
+              thinkingList?.handleInput(data);
+            } else if (matchesKey(data, "enter")) {
+              const item = thinkingList?.getSelectedItem();
+              if (item) applyThinkingChoice(item.value);
+            }
+            tui.requestRender();
+            return;
+          }
+
+          if (matchesKey(data, "ctrl+s")) {
+            persist();
+            tui.requestRender();
+            return;
+          }
+          if (matchesKey(data, "ctrl+p")) {
+            startProfileInput();
+            return;
+          }
+          if (matchesKey(data, "escape")) {
+            done(state.dirty ? "discarded" : "closed");
+            return;
+          }
+
+          if (kbMatch("tui.select.up")) {
+            state.row -= 1;
+            normalizeRow();
+          } else if (kbMatch("tui.select.down")) {
+            state.row += 1;
+            normalizeRow();
+          } else if (matchesKey(data, "left") || matchesKey(data, "shift+tab")) {
+            state.col = 0;
+          } else if (matchesKey(data, "right") || matchesKey(data, "tab")) {
+            state.col = 1;
+          } else if (matchesKey(data, "enter")) {
+            if (!rows.length) {
+              setStatus(t("editor.statusNoPhases"), true);
+            } else if (state.col === 0) {
+              openModelPicker();
+            } else {
+              openThinkingPicker();
+            }
+          }
+          tui.requestRender();
+        },
+      };
+    },
+    { overlay: true, overlayOptions: { anchor: "center", width: "90%", maxHeight: "85%" } },
+  );
+
+  if (result === "discarded") {
+    notify(ctx, t("editor.discarded"), "warning");
+  }
+  return result === "discarded" ? "discarded" : result === "saved" ? "saved" : "closed";
 }
 
 async function runSddModelInteractive(ctx: ExtensionCommandContext): Promise<boolean> {
   const ui: any = ctx?.ui as any;
   if (!ui || typeof ui.select !== "function") return false;
-  const cfg = loadSddConfig();
   const available = getAvailableModelChoices(ctx);
 
   while (true) {
-    const action = await ui.select("SDD Models — perfil persistente (config/sdd-models.json)", [
-      "Configurar modelos por fase",
-      "Ver configuración actual",
-      "Guardar y salir",
-      "Cancelar",
-    ]);
-    if (!action || action === "Cancelar") {
-      notify(ctx, "SDD model: selector cerrado (configuración guardada en config/sdd-models.json).", "info");
+    const cfg = loadSddConfig();
+    const lang = resolveLanguage(cfg.language);
+    const t = createTranslator(lang);
+    const profiles = listProfiles(cfg);
+
+    const actions: Array<{ id: MenuAction; label: string }> = [
+      { id: "edit", label: t("menu.edit") },
+      {
+        id: "load",
+        label: profiles.length ? t("menu.loadCount", { count: profiles.length }) : t("menu.load"),
+      },
+      { id: "save", label: t("menu.saveAs") },
+      { id: "view", label: t("menu.view") },
+      ...(profiles.length ? [{ id: "delete" as MenuAction, label: t("menu.delete") }] : []),
+      { id: "language", label: t("menu.language") },
+      { id: "exit", label: t("menu.exit") },
+    ];
+
+    const title = cfg.activeProfile
+      ? t("menu.titleActive", { name: cfg.activeProfile })
+      : t("menu.titleNoActive");
+    const picked = await ui.select(title, actions.map((action) => action.label));
+    if (!picked) {
+      notify(ctx, t("menu.closed"), "info");
       return true;
     }
-    if (action === "Ver configuración actual") {
-      notify(ctx, formatConfigSummary(loadSddConfig()), "info");
-      continue;
-    }
-    if (action === "Guardar y salir") {
-      saveSddConfig(cfg);
-      notify(ctx, "SDD model: configuración guardada en config/sdd-models.json (persistente entre sesiones).", "info");
+    const actionId = actions.find((action) => action.label === picked)?.id;
+
+    if (actionId === "exit") {
+      notify(ctx, t("menu.closed"), "info");
       return true;
     }
 
-    const phases = phaseList(cfg);
-    const phasePick = await ui.select("Seleccioná la fase a configurar", [...phases, "Volver"]);
-    if (!phasePick || phasePick === "Volver") continue;
-    const phase = phasePick;
-    const current = cfg.phases[phase] || {};
-
-    let modelChoice: string = "__cancel__";
-    if (typeof ui.custom === "function") {
-      modelChoice = await pickModelForPhase(ctx, phase, current.tier || "", current, available);
-    } else {
-      // fallback (no custom UI)
-      const fallback = await ui.select(`Modelo para fase '${phase}'`, [
-        `Mantener actual (${current.provider ?? "null"}/${current.model ?? "null"})`,
-        "Limpiar (sin override)",
-        ...available.map((m) => m.label).slice(0, 80),
-        "Volver",
-      ]);
-      if (!fallback || fallback === "Volver") modelChoice = "__cancel__";
-      else if (fallback.startsWith("Mantener actual")) modelChoice = "__keep__";
-      else if (fallback === "Limpiar (sin override)") modelChoice = "__clear__";
-      else modelChoice = fallback;
-    }
-
-    if (!modelChoice || modelChoice === "__cancel__" || modelChoice === "__nomatch__") continue;
-
-    if (modelChoice === "__clear__") {
-      cfg.phases[phase] = { ...current, provider: null, model: null, thinking: null };
-      saveSddConfig(cfg);
-      notify(ctx, `Fase '${phase}': modelo limpiado y guardado.`, "info");
+    if (actionId === "edit") {
+      await editPhasesScreen(ctx, available, lang);
       continue;
     }
 
-    if (modelChoice !== "__keep__") {
-      const parsed = parseModelLabel(modelChoice);
-      if (!parsed) {
-        notify(ctx, `Selección de modelo inválida: ${modelChoice}`, "warning");
+    if (actionId === "load") {
+      if (!profiles.length) {
+        notify(ctx, t("profile.noProfiles"), "warning");
         continue;
       }
-      cfg.phases[phase] = { ...current, provider: parsed.provider, model: parsed.model };
+      const labels = profiles.map((name) => `${name} — ${profileSummary(cfg, name, t)}`);
+      const pick = await ui.select(t("profile.listTitle"), [...labels, t("common.back")]);
+      if (!pick || pick === t("common.back")) continue;
+      const index = labels.indexOf(pick);
+      if (index < 0) continue;
+      const applied = applyProfile(cfg, profiles[index]);
+      if (!applied.ok) {
+        notify(ctx, translateProfileError(t, applied, profiles[index]), "error");
+        continue;
+      }
       saveSddConfig(cfg);
+      notify(ctx, t("profile.loaded", { name: applied.key }), "info");
+      continue;
     }
 
-    const thinkPick = await ui.select(
-      `Thinking para fase '${phase}' (actual: ${cfg.phases[phase]?.thinking ?? "null"})`,
-      ["Mantener actual", "null", "off", "minimal", "low", "medium", "high", "xhigh", "max"]
-    );
-    if (!thinkPick) continue;
-    if (thinkPick !== "Mantener actual") {
-      cfg.phases[phase] = { ...(cfg.phases[phase] || {}), thinking: thinkPick === "null" ? null : thinkPick };
+    if (actionId === "save") {
+      const name = await ui.input?.(
+        t("profile.namePrompt"),
+        cfg.activeProfile || t("profile.namePlaceholder"),
+      );
+      if (name == null) continue;
+      const saved = saveProfile(cfg, name, cfg.phases);
+      if (!saved.ok) {
+        notify(ctx, translateProfileError(t, saved, name), "error");
+        continue;
+      }
       saveSddConfig(cfg);
+      notify(ctx, t("profile.saved", { name: saved.key }), "info");
+      continue;
     }
 
-    notify(
-      ctx,
-      `Fase '${phase}' guardada: ${cfg.phases[phase]?.provider ?? "null"}/${cfg.phases[phase]?.model ?? "null"} (thinking=${cfg.phases[phase]?.thinking ?? "null"})`,
-      "info"
-    );
+    if (actionId === "view") {
+      notify(ctx, formatConfigSummary(cfg, t), "info");
+      continue;
+    }
+
+    if (actionId === "delete") {
+      const pick = await ui.select(t("profile.deleteTitle"), [...profiles, t("common.back")]);
+      if (!pick || pick === t("common.back")) continue;
+      const confirmed = await ui.confirm?.(
+        t("profile.deleteConfirmTitle", { name: pick }),
+        t("profile.deleteConfirmMessage"),
+      );
+      if (!confirmed) continue;
+      const removed = deleteProfile(cfg, pick);
+      if (!removed.ok) {
+        notify(ctx, translateProfileError(t, removed, pick), "error");
+        continue;
+      }
+      saveSddConfig(cfg);
+      notify(ctx, t("profile.deleted", { name: removed.key }), "info");
+      continue;
+    }
+
+    if (actionId === "language") {
+      const languageOptions: Array<{ value: SddLanguage; label: string }> = [
+        { value: "auto", label: t("language.auto") },
+        { value: "es", label: t("language.es") },
+        { value: "en", label: t("language.en") },
+      ];
+      const pick = await ui.select(t("language.title"), [
+        ...languageOptions.map((option) => option.label),
+        t("common.back"),
+      ]);
+      if (!pick || pick === t("common.back")) continue;
+      const value = languageOptions.find((option) => option.label === pick)?.value;
+      if (!value) continue;
+      cfg.language = value;
+      saveSddConfig(cfg);
+      const nextT = createTranslator(resolveLanguage(cfg.language));
+      notify(ctx, nextT("language.changed", { value: languageLabel(nextT, value) }), "info");
+      continue;
+    }
   }
 }
 
@@ -774,42 +1214,132 @@ export default function eccSddExtension(pi: any): void {
     }
   }
 
-  pi.registerCommand("sdd-model", {
-    description: "Configure or show SDD phase model mapping (config/sdd-models.json) — interactive selector when UI is available",
-    handler: async (args: string, ctx: ExtensionCommandContext) => {
-      const cfg = loadSddConfig();
-      const trimmed = (args || "").trim();
-      if (!trimmed) {
-        const handled = await runSddModelInteractive(ctx);
-        if (handled) return;
-        notify(ctx, formatConfigSummary(cfg), "info");
-        return;
-      }
+  const sddModelHandler = async (args: string, ctx: ExtensionCommandContext) => {
+    const cfg = loadSddConfig();
+    const t = createTranslator(resolveLanguage(cfg.language));
+    const trimmed = (args || "").trim();
 
-      // Usage: /sdd-model <phase> clear | /sdd-model <phase> <provider> <model> [thinking]
-      const parts = trimmed.split(/\s+/);
-      const phase = resolvePhase(cfg, parts[0]);
-      if (!phase) {
-        notify(ctx, `Unknown phase '${parts[0]}'. Known phases: ${phaseList(cfg).join(", ")}`, "error");
+    if (!trimmed) {
+      const handled = await runSddModelInteractive(ctx);
+      if (handled) return;
+      notify(ctx, formatConfigSummary(cfg, t), "info");
+      return;
+    }
+
+    const parts = trimmed.split(/\s+/);
+    const command = parts[0].toLowerCase();
+    const rest = parts.slice(1).join(" ").trim();
+
+    // Profile commands: /sdd-model save <name> | load <name> | delete <name> | profiles
+    if (command === "profiles" || command === "list") {
+      const names = listProfiles(cfg);
+      if (!names.length) {
+        notify(ctx, t("profile.noProfilesCli"), "info");
         return;
       }
-      if (parts.length === 2 && parts[1].toLowerCase() === "clear") {
-        cfg.phases[phase] = { ...(cfg.phases[phase] || {}), provider: null, model: null, thinking: null };
-        saveSddConfig(cfg);
-        notify(ctx, `Cleared model config for phase '${phase}'.`, "info");
+      notify(
+        ctx,
+        [t("profile.listHeader"), ...names.map((name) => `- ${name}: ${profileSummary(cfg, name, t)}`)].join("\n"),
+        "info",
+      );
+      return;
+    }
+    if (command === "save") {
+      if (!rest) {
+        notify(ctx, t("cli.usage"), "error");
         return;
       }
-      if (parts.length < 3) {
-        notify(ctx, `Usage: /sdd-model <phase> <provider> <model> [thinking] | /sdd-model <phase> clear | /sdd-model`, "error");
+      const saved = saveProfile(cfg, rest, cfg.phases);
+      if (!saved.ok) {
+        notify(ctx, translateProfileError(t, saved, rest), "error");
         return;
       }
-      const provider = parts[1];
-      const model = parts[2];
-      const thinking = parts[3] || null;
-      cfg.phases[phase] = { ...(cfg.phases[phase] || {}), provider, model, thinking };
       saveSddConfig(cfg);
-      notify(ctx, `Set ${phase}: provider=${provider} model=${model} thinking=${thinking ?? "null"}`, "info");
-    },
+      notify(ctx, t("profile.saved", { name: saved.key }), "info");
+      return;
+    }
+    if (command === "load") {
+      if (!rest) {
+        notify(ctx, t("cli.usage"), "error");
+        return;
+      }
+      const applied = applyProfile(cfg, rest);
+      if (!applied.ok) {
+        notify(ctx, translateProfileError(t, applied, rest), "error");
+        return;
+      }
+      saveSddConfig(cfg);
+      notify(ctx, t("profile.loaded", { name: applied.key }), "info");
+      return;
+    }
+    if (command === "delete" || command === "rm") {
+      if (!rest) {
+        notify(ctx, t("cli.usage"), "error");
+        return;
+      }
+      const removed = deleteProfile(cfg, rest);
+      if (!removed.ok) {
+        notify(ctx, translateProfileError(t, removed, rest), "error");
+        return;
+      }
+      saveSddConfig(cfg);
+      notify(ctx, t("profile.deleted", { name: removed.key }), "info");
+      return;
+    }
+
+    // Language commands: /sdd-model language [auto|es|en]
+    if (command === "language" || command === "lang" || command === "idioma") {
+      if (!rest) {
+        notify(ctx, t("language.current", { value: languageLabel(t, cfg.language) }), "info");
+        return;
+      }
+      const value = rest.toLowerCase();
+      if (!isSddLanguage(value)) {
+        notify(ctx, t("language.usage"), "error");
+        return;
+      }
+      cfg.language = value;
+      saveSddConfig(cfg);
+      const nextT = createTranslator(resolveLanguage(cfg.language));
+      notify(ctx, nextT("language.changed", { value: languageLabel(nextT, value) }), "info");
+      return;
+    }
+
+    // Phase commands: /sdd-model <phase> clear | /sdd-model <phase> <provider> <model> [thinking]
+    const phase = resolvePhase(cfg, parts[0]);
+    if (!phase) {
+      notify(ctx, t("cli.unknownPhase", { phase: parts[0], list: phaseList(cfg).join(", ") }), "error");
+      return;
+    }
+    if (parts.length === 2 && parts[1].toLowerCase() === "clear") {
+      cfg.phases[phase] = { ...(cfg.phases[phase] || {}), provider: null, model: null, thinking: null };
+      cfg.activeProfile = null;
+      saveSddConfig(cfg);
+      notify(ctx, t("cli.cleared", { phase }), "info");
+      return;
+    }
+    if (parts.length < 3) {
+      notify(ctx, t("cli.usage"), "error");
+      return;
+    }
+    const provider = parts[1];
+    const model = parts[2];
+    const thinking = parts[3] || null;
+    cfg.phases[phase] = { ...(cfg.phases[phase] || {}), provider, model, thinking };
+    cfg.activeProfile = null;
+    saveSddConfig(cfg);
+    notify(ctx, t("cli.set", { phase, provider, model, thinking: thinking ?? "null" }), "info");
+  };
+
+  pi.registerCommand("sdd-model", {
+    description:
+      "Edit SDD phase models on one screen, save/load named profiles (config/sdd-models.json) — interactive when UI is available",
+    handler: sddModelHandler,
+  });
+
+  pi.registerCommand("sdd-models", {
+    description: "Alias of /sdd-model: SDD phase models and named profiles",
+    handler: sddModelHandler,
   });
 
   pi.registerCommand("sdd-spec", {
