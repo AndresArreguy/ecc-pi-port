@@ -2,6 +2,10 @@
 
 [English](README.md) · **Español**
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/AndresArreguy/ecc-pi-port/main/assets/banner.png" alt="ECC for Pi" width="100%">
+</p>
+
 Trae el núcleo portable de ingeniería de [Everything Claude Code (ECC)](https://github.com/affaan-m/ECC)
 a [Pi](https://pi.dev): skills curadas, comandos como prompt templates, reglas de
 código, adaptador de hooks, runner de agentes aislado y flujo SDD — empaquetado

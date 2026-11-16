@@ -2,6 +2,7 @@
 
 ## [Unreleased]
 
+- README: banner **ECC for Pi** (assets/banner.png + SVG) y preview para la galería de paquetes de Pi (`pi.image`).
 - `/sdd-model` (alias `/sdd-models`) ahora edita **todas las fases en una sola pantalla**: una fila por fase (`spec`, `plan`, `implement`, `review`, `verify`, `light`) con columnas de modelo y thinking.
 - `Ctrl+S` guarda la configuración activa; `Ctrl+P` guarda el estado actual como **perfil con nombre** desde la misma pantalla. `Esc` cierra sin autoguardar.
 - Perfiles/presets persistentes en `config/sdd-models.json` (`profiles`, `activeProfile`): guardar, cargar, listar y eliminar desde el menú o con `/sdd-model save|load|delete|profiles`.
