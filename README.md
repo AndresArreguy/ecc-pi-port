@@ -333,6 +333,10 @@ ecc-pi-port/
 - **`ecc HEAD != ecc.lock`:** run `npm run update-ecc -- <ref>` or restore the
   pinned commit; the build refuses to silently mix versions.
 
+## Contributing
+
+Contributions are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Issues and PRs can be in English or Spanish. Security reports: [SECURITY.md](SECURITY.md).
+
 ## License
 
 MIT. See [`LICENSE`](LICENSE):

@@ -2,6 +2,7 @@
 
 ## [0.8.0] - 2026-11-16
 
+- Contribución: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, reporte privado en `SECURITY.md` y templates de issues/PR.
 - README: banner **ECC for Pi** (assets/banner.png + SVG) y preview para la galería de paquetes de Pi (`pi.image`).
 - `run_agent` ahora resuelve el provider/modelo del hijo desde `PI_PROVIDER`/`PI_MODEL` y, si faltan, desde `~/.pi/agent/settings.json` (`defaultProvider`/`defaultModel`, override con `PI_CODING_AGENT_DIR`). Antes leía `~/.pi/settings.json`, que no es el settings del agente: el child podía caer a un provider sin crédito y no cargar `pi-<provider>-provider`. El test del config shipped ahora acepta cualquier idioma válido (`auto|es|en`), no solo `auto`.
 - `/sdd-model` (alias `/sdd-models`) ahora edita **todas las fases en una sola pantalla**: una fila por fase (`spec`, `plan`, `implement`, `review`, `verify`, `light`) con columnas de modelo y thinking.

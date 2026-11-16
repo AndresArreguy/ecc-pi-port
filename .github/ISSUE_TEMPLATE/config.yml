@@ -1,0 +1,8 @@
+blank_issues_enabled: true
+contact_links:
+  - name: Security report
+    url: https://github.com/AndresArreguy/ecc-pi-port/security/advisories/new
+    about: Please report vulnerabilities privately, not in a public issue.
+  - name: Upstream ECC
+    url: https://github.com/affaan-m/ECC
+    about: Skills, commands, rules and hooks that belong to ECC itself.

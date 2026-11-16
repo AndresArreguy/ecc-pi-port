@@ -5,6 +5,16 @@ completos de tu usuario, y los hooks ejecutan código Node de ECC que, a su vez,
 puede lanzar otros procesos. Revisá esta lista antes de instalarlo en una máquina
 distinta de la de desarrollo.
 
+## Reporte de vulnerabilidades
+
+**No abras un issue público.** Usá la pestaña **Security** del repo → **Report a
+vulnerability** para enviar un reporte privado. Incluí versión/commit del paquete,
+sistema operativo, versión de Pi y Node, pasos para reproducir, impacto y una
+prueba de concepto si aplica. No incluyas API keys, sesiones ni datos de cuenta.
+
+Si el reporte privado no está disponible, contactá al maintainer por GitHub y
+pedí un canal privado.
+
 ## 1. Qué se ejecuta
 
 ### Al arrancar cada sesión de Pi

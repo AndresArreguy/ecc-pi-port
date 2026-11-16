@@ -1,0 +1,38 @@
+name: Feature request
+description: Suggest a port, generator, hook, agent, SDD or packaging improvement
+title: "[feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Describe the workflow and which layer it touches. Changes to ECC's own
+        content usually belong upstream; Pi-specific adaptations can live here.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem are you trying to solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Extension, lib, generator, hooks, agents, SDD, packaging or docs.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I searched existing issues and docs/pi-port.
+          required: true
+        - label: This is port-specific, not upstream ECC content.
+          required: false
+        - label: I am willing to help test or implement this.
+          required: false

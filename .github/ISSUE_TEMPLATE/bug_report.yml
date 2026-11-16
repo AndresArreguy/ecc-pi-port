@@ -1,0 +1,71 @@
+name: Bug report
+description: Something in ecc-pi-port is broken
+title: "[bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting. Please keep it short and reproducible.
+        For security issues, use the private Security Advisories flow instead.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: Actual behavior, including the command or phase.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. ...
+        2. ...
+        3. ...
+    validations:
+      required: true
+  - type: input
+    id: package
+    attributes:
+      label: Package version / commit
+      placeholder: e.g. v0.8.0 or the commit SHA
+    validations:
+      required: true
+  - type: input
+    id: ecc
+    attributes:
+      label: ECC ref from ecc.lock
+      placeholder: e.g. v2.2.3 / c05b2d6...
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: OS, terminal, Pi version, Node version
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Hook log, stderr, generated artifact diff. Remove secrets.
+      render: text
+  - type: checkboxes
+    id: checks
+    attributes:
+      label: Checks
+      options:
+        - label: I am on the latest tag or main.
+          required: true
+        - label: I ran `npm run verify` (or explained why not).
+          required: false
+        - label: I searched existing issues.
+          required: true

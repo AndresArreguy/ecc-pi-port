@@ -67,7 +67,9 @@
     "README.es.md",
     "CHANGELOG.md",
     "SECURITY.md",
-    "LICENSE"
+    "LICENSE",
+    "CONTRIBUTING.md",
+    "CODE_OF_CONDUCT.md"
   ],
   "pi": {
     "extensions": [
