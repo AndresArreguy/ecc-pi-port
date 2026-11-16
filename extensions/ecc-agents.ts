@@ -137,6 +137,37 @@ function resolveLimits(agentName: string): { maxTurns: number; timeoutMs: number
   };
 }
 
+/**
+ * The provider and model Pi itself defaults to.
+ *
+ * Pi's user settings live in the agent directory (`~/.pi/agent/settings.json`),
+ * optionally overridden by `PI_CODING_AGENT_DIR`. The child cannot be left to
+ * resolve a provider on its own: `--no-extensions` removes non-builtin
+ * providers (a provider installed as its own package), so the fallback would be
+ * a builtin the session may have no credit for. The environment is the first
+ * answer, but it is not always readable from here.
+ */
+function piSettingsDefaults(): { provider: string | null; model: string | null } {
+  try {
+    const agentDir = process.env.PI_CODING_AGENT_DIR?.trim() || path.join(os.homedir(), ".pi", "agent");
+    const settings = JSON.parse(fs.readFileSync(path.join(agentDir, "settings.json"), "utf8"));
+    const provider = typeof settings?.defaultProvider === "string" ? settings.defaultProvider.trim() : "";
+    const model = typeof settings?.defaultModel === "string" ? settings.defaultModel.trim() : "";
+
+    return { provider: provider || null, model: model || null };
+  } catch {
+    return { provider: null, model: null };
+  }
+}
+
+/** The provider a child should run against: pinned, then the session's, then pi's default. */
+function childProvider(agentName: string, agent: GeneratedAgent): string | null {
+  const per = (getModelsConfig().agents && getModelsConfig().agents[agentName]) || {};
+  const pinned = typeof per.provider === "string" && per.provider.trim() ? per.provider.trim() : "";
+
+  return pinned || (process.env.PI_PROVIDER?.trim() ?? "") || piSettingsDefaults().provider;
+}
+
 function resolveModelArgs(agentName: string, agent: GeneratedAgent): string[] {
   const cfg = getModelsConfig();
   const per = (cfg.agents && cfg.agents[agentName]) || {};
@@ -156,8 +187,9 @@ function resolveModelArgs(agentName: string, agent: GeneratedAgent): string[] {
   // No per-agent pin: inherit the provider and model this session is authenticated
   // with, so a child never resolves a default provider it has no credit or key for.
   if (!provider && !model) {
-    const envProvider = process.env.PI_PROVIDER?.trim();
-    const envModel = process.env.PI_MODEL?.trim();
+    const defaults = piSettingsDefaults();
+    const envProvider = process.env.PI_PROVIDER?.trim() || defaults.provider;
+    const envModel = process.env.PI_MODEL?.trim() || defaults.model;
     if (envProvider && envModel) {
       args.push("--provider", envProvider, "--model", envModel);
     } else if (envModel) {
@@ -267,7 +299,7 @@ function findPiCliScript(): string | null {
  * registers it when that extension loads: without it the child cannot resolve
  * `--provider <name>`. `ECC_PI_EXTENSIONS` overrides the guess.
  */
-function resolveExtensionArgs(): string[] {
+function resolveExtensionArgs(provider: string | null): string[] {
   const configured = (process.env.ECC_PI_EXTENSIONS ?? "")
     .split(",")
     .map((entry) => entry.trim())
@@ -277,7 +309,6 @@ function resolveExtensionArgs(): string[] {
     return configured.flatMap((entry) => ["-e", entry]);
   }
 
-  const provider = process.env.PI_PROVIDER?.trim();
   if (!provider) return [];
 
   const base = path.join(os.homedir(), ".pi", "agent", "npm", "node_modules", `pi-${provider}-provider`);
@@ -363,7 +394,7 @@ async function runAgentProcess(
   args.push("--system-prompt", `${agent.systemPrompt}\n\n${buildRuntimeContract(agent.piTools)}`);
 
   // The provider this session authenticated with, and the extension that registers it.
-  args.push(...resolveExtensionArgs());
+  args.push(...resolveExtensionArgs(childProvider(agent.name, agent)));
 
   // Model overrides from config (if set)
   args.push(...resolveModelArgs(agent.name, agent));
