@@ -83,7 +83,7 @@
       "./prompts/*.md"
     ],
     "changelogPath": "./CHANGELOG.md",
-    "image": "./assets/banner.png"
+    "image": "./assets/banner-v2.png"
   },
   "peerDependencies": {
     "@earendil-works/pi-agent-core": "*",

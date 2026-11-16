@@ -3,7 +3,7 @@
 **English** · [Español](README.es.md)
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/AndresArreguy/ecc-pi-port/main/assets/banner.png" alt="ECC for Pi" width="100%">
+  <img src="https://raw.githubusercontent.com/AndresArreguy/ecc-pi-port/main/assets/banner-v2.png" alt="ECC-to-π" width="100%">
 </p>
 
 Bring the portable engineering core of [Everything Claude Code (ECC)](https://github.com/affaan-m/ECC)
