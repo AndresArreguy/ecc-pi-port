@@ -1,6 +1,6 @@
 {
   "name": "ecc-pi-port",
-  "version": "0.7.1",
+  "version": "0.8.0",
   "description": "Everything Claude Code (ECC) for Pi: 123 curated skills, prompt commands, rules, a hooks adapter, an isolated agent runner and an SDD flow.",
   "license": "MIT",
   "type": "module",

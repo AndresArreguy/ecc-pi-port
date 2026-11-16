@@ -1,6 +1,6 @@
 # Estado del port ECC → Pi
 
-Actualizado: 2026-11-13
+Actualizado: 2026-11-16
 
 ## Versión de ECC
 
@@ -42,6 +42,11 @@ en checkout detached del commit del lock. El build estampa `sourceRef` en
 - Repo URL usada en metadata/badges: `github.com/AndresArreguy/ecc-pi-port`.
 - Publicado en npm: **`ecc-pi-port@0.7.0`** (2026-11-13), maintainer
   `andresarreguydev`. Instalar con `pi install npm:ecc-pi-port@0.7.0`.
+- Preparado **`ecc-pi-port@0.8.0`** (2026-11-16): perfiles SDD + pantalla única +
+  i18n, banner de README y fix de provider/model en `run_agent`. **Pendiente de
+  publicación**: la cuenta npm está en standby de 72 h por cambio de clave.
+  No pushear el tag `v0.8.0` hasta que termine el standby: `release.yml` publica
+  automáticamente con tags `v*`.
 - Verificado desde npm: paquete instalado en config aislada → 8/8 checks
   (skills, commands, hook `session:start`, `run_agent`).
 - Pendiente opcional: agregar `andresarreguy` como owner npm y configurar

@@ -178,7 +178,7 @@ test("shipped SDD config has the profile fields and all phases", () => {
   const cfg = normalizeConfig(JSON.parse(fs.readFileSync(configPath, "utf8")));
   assert.ok(cfg.activeProfile === null || typeof cfg.activeProfile === "string");
   assert.equal(typeof cfg.profiles, "object");
-  assert.equal(cfg.language, "auto");
+  assert.ok(["auto", "es", "en"].includes(String(cfg.language)));
   for (const phase of ["spec", "plan", "implement", "review", "verify", "light"]) {
     assert.ok(cfg.phases[phase], `missing phase ${phase}`);
   }
