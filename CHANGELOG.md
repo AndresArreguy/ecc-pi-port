@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.7.1] - 2026-11-16
+
+- `run_agent` funciona con el modelo barato de la sesión: el orquestador ahora agrega un **contrato de runtime** al system prompt de cada agente (tools reales en minúscula, `read`/`grep`/`find`/`ls`, se invocan como llamada y no escribiendo XML/JSON) y recuerda lo mismo en el prompt de la tarea. Sin eso, un modelo barato imprimía el llamado de tool como texto y el turno terminaba sin leer ni responder.
+- El hijo carga automáticamente la extensión del provider de la sesión (`pi-<provider>-provider`, override con `ECC_PI_EXTENSIONS`): `--no-extensions` apagaba providers que no son built-in y el child caía a un default sin credenciales.
+- Sin pin por agente, el hijo hereda `PI_PROVIDER`/`PI_MODEL` de la sesión en lugar de resolver un provider por su cuenta.
+- Estados honestos en el resultado: `status=provider_error` y `status=empty` con el mensaje del provider, en vez de `status=ok` con cero texto (un 402 se reportaba como éxito).
+- Probado con `deepseek-v4.1-flash`: planner (58 llamadas de tool), code-reviewer, security-reviewer, architect y tdd-guide llaman tools y terminan en texto.
+
 ## [0.7.0] - 2026-11-13
 
 - `npm run update-ecc -- <tag-o-commit>`: updater seguro y reproducible de ECC.

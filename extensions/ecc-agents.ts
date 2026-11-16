@@ -12,6 +12,7 @@
 
 import { spawn } from "node:child_process";
 import * as fs from "node:fs";
+import * as os from "node:os";
 import * as path from "node:path";
 const pathMod = path;
 import * as readline from "node:readline";
@@ -83,6 +84,7 @@ interface RunResult {
   signal: NodeJS.Signals | null;
   stderr: string;
   error?: string;
+  providerError?: string;
 }
 
 const DEFAULT_LIMITS = {
@@ -150,6 +152,18 @@ function resolveModelArgs(agentName: string, agent: GeneratedAgent): string[] {
   } else if (model) {
     args.push("--model", model);
   }
+
+  // No per-agent pin: inherit the provider and model this session is authenticated
+  // with, so a child never resolves a default provider it has no credit or key for.
+  if (!provider && !model) {
+    const envProvider = process.env.PI_PROVIDER?.trim();
+    const envModel = process.env.PI_MODEL?.trim();
+    if (envProvider && envModel) {
+      args.push("--provider", envProvider, "--model", envModel);
+    } else if (envModel) {
+      args.push("--model", envModel);
+    }
+  }
   if (thinking) {
     args.push("--thinking", thinking);
   }
@@ -188,9 +202,33 @@ function extractTextFromMessage(message: any): string {
   return "";
 }
 
+/**
+ * What the child has to know about this runtime, which is not Claude Code.
+ *
+ * The agent prompts are written for Claude Code: they name tools `Read`,
+ * `Grep`, `Glob` and assume its calling convention. Cheaper models take that
+ * literally and print tool syntax as text, so the turn ends with nothing read
+ * and nothing answered. The contract is stated for every agent, in the terms
+ * of the tools this runtime actually gives the child.
+ */
+function buildRuntimeContract(piTools: string[]): string {
+  const tools = piTools.length > 0 ? piTools.join(", ") : "none";
+
+  return [
+    "## Runtime contract",
+    "",
+    `This is the Pi runtime. The only tools you have are: ${tools}.`,
+    "They are real function calls: invoke one by making a tool call, never by writing",
+    "tool syntax, XML tags or JSON blocks inside your answer.",
+    "Tool names are lowercase exactly as listed above; `Read`, `Grep` and `Glob` do not exist here.",
+    "Do not narrate a call nor echo its arguments. Read what the task needs, then finish with the",
+    "final result as plain text.",
+  ].join("\n");
+}
+
 function buildPrompt(task: string, context?: string): string {
   const extra = context && context.trim() ? `\n\nAdditional context:\n${context.trim()}` : "";
-  return `Task:\n${task.trim()}${extra}\n\nReturn only your final result for the main session.`;
+  return `Task:\n${task.trim()}${extra}\n\nUse your tools by calling them, never by writing tool syntax in the answer. Return only your final result for the main session, as plain text.`;
 }
 
 function findPiCliScript(): string | null {
@@ -220,6 +258,43 @@ function findPiCliScript(): string | null {
     } catch {}
   }
   return null;
+}
+
+/**
+ * The extensions a child needs even though `--no-extensions` disables discovery.
+ *
+ * A provider may ship as its own package (`pi-<provider>-provider`), and Pi only
+ * registers it when that extension loads: without it the child cannot resolve
+ * `--provider <name>`. `ECC_PI_EXTENSIONS` overrides the guess.
+ */
+function resolveExtensionArgs(): string[] {
+  const configured = (process.env.ECC_PI_EXTENSIONS ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter(Boolean);
+
+  if (configured.length > 0) {
+    return configured.flatMap((entry) => ["-e", entry]);
+  }
+
+  const provider = process.env.PI_PROVIDER?.trim();
+  if (!provider) return [];
+
+  const base = path.join(os.homedir(), ".pi", "agent", "npm", "node_modules", `pi-${provider}-provider`);
+  const manifest = path.join(base, "package.json");
+
+  try {
+    const pkg = JSON.parse(fs.readFileSync(manifest, "utf8"));
+    const entries: unknown = pkg?.pi?.extensions;
+    const files = Array.isArray(entries) && entries.length > 0 ? entries : ["index.ts"];
+
+    return (files as string[])
+      .map((file) => path.join(base, file))
+      .filter((file) => fs.existsSync(file))
+      .flatMap((file) => ["-e", file]);
+  } catch {
+    return [];
+  }
 }
 
 function resolvePiSpawnSpec(args: string[]): { cmd: string; cmdArgs: string[] } {
@@ -285,7 +360,10 @@ async function runAgentProcess(
   }
 
   // Restrict to agent's system prompt (isolated role)
-  args.push("--system-prompt", agent.systemPrompt);
+  args.push("--system-prompt", `${agent.systemPrompt}\n\n${buildRuntimeContract(agent.piTools)}`);
+
+  // The provider this session authenticated with, and the extension that registers it.
+  args.push(...resolveExtensionArgs());
 
   // Model overrides from config (if set)
   args.push(...resolveModelArgs(agent.name, agent));
@@ -304,6 +382,7 @@ async function runAgentProcess(
     let stderr = "";
     let turns = 0;
     let lastAssistantText = "";
+    let providerError = "";
     let timedOut = false;
     let turnLimitReached = false;
     let aborted = false;
@@ -325,6 +404,7 @@ async function runAgentProcess(
         signal: result.signal ?? null,
         stderr,
         error: result.error,
+        providerError: providerError || undefined,
       });
     };
 
@@ -369,6 +449,9 @@ async function runAgentProcess(
         if (evt.message?.role === "assistant") {
           const text = extractTextFromMessage(evt.message);
           if (text) lastAssistantText = text;
+          if (evt.message?.stopReason === "error") {
+            providerError = String(evt.message?.errorMessage || "the provider ended the turn with an error");
+          }
         }
         if (limits.maxTurns > 0 && turns >= limits.maxTurns) {
           requestKill("turn_limit");
@@ -405,8 +488,11 @@ function formatRunResult(agentName: string, source: string, result: RunResult): 
   if (result.turnLimitReached) header.push("status=turn_limit_reached");
   else if (result.timedOut) header.push("status=timeout");
   else if (result.aborted) header.push("status=aborted");
+  else if (result.providerError) header.push("status=provider_error");
   else if (result.error) header.push("status=spawn_error");
   else if (result.exitCode && result.exitCode !== 0) header.push(`status=exit_${result.exitCode}`);
+  // A turn that ended without an answer is a failure, never a success.
+  else if (!result.finalText.trim()) header.push("status=empty");
   else header.push("status=ok");
 
   const parts = [header.join(" ")];
@@ -415,6 +501,7 @@ function formatRunResult(agentName: string, source: string, result: RunResult): 
   } else {
     parts.push("", "(no final assistant text captured)");
   }
+  if (result.providerError) parts.push("", `Provider error: ${result.providerError}`);
   if (result.error) parts.push("", `Error: ${result.error}`);
   if (result.stderr && result.stderr.trim()) {
     const tail = result.stderr.trim().split(/\r?\n/).slice(-20).join("\n");
