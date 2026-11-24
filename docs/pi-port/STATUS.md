@@ -25,7 +25,7 @@ en checkout detached del commit del lock. El build estampa `sourceRef` en
 | 2 · Commands | ✅ | `prompts/`, `config/commands-allowlist.json`, `docs/pi-port/02-commands.md` |
 | 3 · Hooks | ✅ | `extensions/ecc-hooks.ts`, `lib/ecc-hooks-core.ts`, `docs/pi-port/03-hooks.md` |
 | 4 · Agents | ✅ | `extensions/ecc-agents.ts`, `config/agents-*.json`, `docs/pi-port/04-agents.md` |
-| 5 · SDD | ✅ | `extensions/ecc-sdd.ts`, `config/sdd-models.json`, `docs/pi-port/05-sdd.md` |
+| 5 · SDD | ✅ | `extensions/ecc-sdd.ts`, `lib/ecc-sdd-config.ts`, `lib/ecc-agent-models.ts`, `config/sdd-models.json`, `config/agents-models.json`, `docs/pi-port/05-sdd.md` |
 | 6 · Release | ✅ | `package.json`, `README.md`, `SECURITY.md`, `docs/pi-port/06-release.md` |
 | 7 · Updater | ✅ | `scripts/update-ecc.ts`, `scripts/lib/ecc-{git,lock,report}.ts`, `overlays/`, `ecc.lock` |
 

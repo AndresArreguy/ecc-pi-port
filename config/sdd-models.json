@@ -1,5 +1,5 @@
 {
-  "description": "Model configuration for ECC SDD (spec-driven development) phases in Pi. Edit all phases on one screen with /sdd-model (alias /sdd-models), save/load named profiles, and switch language with auto|es|en.",
+  "description": "Model configuration for ECC SDD (spec-driven development) phases in Pi. Edit all phases and every subagent model pin on one screen with /ecc-models (legacy aliases /sdd-model, /sdd-models), save/load named profiles, and switch language with auto|es|en.",
   "language": "auto",
   "activeProfile": "stock cmdc",
   "phases": {

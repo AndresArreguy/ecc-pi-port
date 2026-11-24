@@ -18,6 +18,15 @@ export interface PhaseModelConfig {
 export interface SddProfile {
   updatedAt?: string;
   phases: Record<string, PhaseModelConfig>;
+  /** Model pins for ECC subagents. Runtime limits are never stored in a profile. */
+  agents?: Record<string, AgentModelPin>;
+}
+
+/** Model pin for a subagent (provider/model/thinking only). */
+export interface AgentModelPin {
+  provider?: string | null;
+  model?: string | null;
+  thinking?: string | null;
 }
 
 export interface SddModelsConfig {
@@ -30,7 +39,7 @@ export interface SddModelsConfig {
 }
 
 export const DEFAULT_CONFIG_DESCRIPTION =
-  "Model configuration for ECC SDD (spec-driven development) phases in Pi. Set provider/model/thinking per phase; values are not hardcoded. Use /sdd-model to view/update.";
+  "Model configuration for ECC SDD (spec-driven development) phases in Pi. Set provider/model/thinking per phase; values are not hardcoded. Subagent pins live in config/agents-models.json. Use /ecc-models to view/update.";
 
 export const THINKING_VALUES = ["null", "off", "minimal", "low", "medium", "high", "xhigh", "max"] as const;
 
@@ -53,6 +62,8 @@ export interface ProfileResult {
   ok: boolean;
   key?: string;
   code?: ProfileErrorCode;
+  /** Agent pins carried by the applied profile, if it had any. */
+  agents?: Record<string, AgentModelPin>;
 }
 
 export interface ProfileNameValidation {
@@ -88,14 +99,37 @@ function sanitizePhase(raw: unknown): PhaseModelConfig {
 
 function sanitizePhases(raw: unknown): Record<string, PhaseModelConfig> {
   const out: Record<string, PhaseModelConfig> = {};
-  if (!raw || typeof raw !== "object") return out;
-  for (const [phase, value] of Object.entries(raw as Record<string, unknown>)) {
+  if (!raw || typeof raw !== "object") return out;  for (const [phase, value] of Object.entries(raw as Record<string, unknown>)) {
     const key = phase.trim();
     if (!key || isReservedKey(key)) continue;
     if (!value || typeof value !== "object") continue;
     out[key] = sanitizePhase(value);
   }
   return out;
+}
+
+/** Normalize a subagent pin: provider/model/thinking only, limits are dropped. */
+function sanitizeAgentPin(raw: unknown): AgentModelPin {
+  const out: AgentModelPin = {};
+  if (!raw || typeof raw !== "object") return out;
+  const source = raw as Record<string, unknown>;
+  for (const key of ["provider", "model", "thinking"] as const) {
+    const value = source[key];
+    if (value === null) out[key] = null;
+    else if (typeof value === "string") out[key] = value.trim() || null;
+  }
+  return out;
+}
+
+function sanitizeAgentPins(raw: unknown): Record<string, AgentModelPin> | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const out: Record<string, AgentModelPin> = {};
+  for (const [name, value] of Object.entries(raw as Record<string, unknown>)) {
+    const key = name.trim();
+    if (!key || isReservedKey(key)) continue;
+    out[key] = sanitizeAgentPin(value);
+  }
+  return Object.keys(out).length ? out : undefined;
 }
 
 /** Normalize a parsed JSON document into a usable config without losing phases. */
@@ -130,12 +164,14 @@ export function normalizeConfig(raw: unknown): SddModelsConfig {
       if (!value || typeof value !== "object") continue;
       const profileSource = value as Record<string, unknown>;
       const phases = sanitizePhases(profileSource.phases);
+      const agents = sanitizeAgentPins(profileSource.agents);
       if (Object.keys(phases).length === 0) continue;
       const key = name.trim();
       if (!key || isReservedKey(key)) continue;
       cfg.profiles![key] = {
         ...(typeof profileSource.updatedAt === "string" ? { updatedAt: profileSource.updatedAt } : {}),
         phases,
+        ...(agents ? { agents } : {}),
       };
     }
   }
@@ -146,6 +182,11 @@ export function normalizeConfig(raw: unknown): SddModelsConfig {
 /** Deep-copy a phase map so a saved profile never aliases live config. */
 export function deepClonePhases(phases: Record<string, PhaseModelConfig>): Record<string, PhaseModelConfig> {
   return structuredClone(phases);
+}
+
+/** Deep-copy an agent pin map so a saved profile never aliases live config. */
+export function deepCloneAgentPins(pins: Record<string, AgentModelPin>): Record<string, AgentModelPin> {
+  return structuredClone(pins);
 }
 
 export function phaseList(cfg: SddModelsConfig): string[] {
@@ -191,14 +232,16 @@ export function listProfiles(cfg: SddModelsConfig): string[] {
 }
 
 /**
- * Save the given phases as a named profile. Overwrites an existing profile
- * whose name matches case-insensitively and activates the saved profile.
+ * Save the given phases (and, when provided, subagent pins) as a named profile.
+ * Overwrites an existing profile whose name matches case-insensitively and
+ * activates the saved profile.
  */
 export function saveProfile(
   cfg: SddModelsConfig,
   name: string,
   phases: Record<string, PhaseModelConfig>,
   now: string = new Date().toISOString(),
+  agents?: Record<string, AgentModelPin>,
 ): ProfileResult {
   const valid = validateProfileName(name);
   if (!valid.ok) return { ok: false, code: valid.code };
@@ -209,23 +252,33 @@ export function saveProfile(
   cfg.profiles[key] = {
     updatedAt: now,
     phases: deepClonePhases(phases),
+    ...(agents ? { agents: deepCloneAgentPins(agents) } : {}),
   };
   cfg.activeProfile = key;
   return { ok: true, key };
 }
 
-/** Merge a saved profile into the live phases and mark it active. */
+/**
+ * Merge a saved profile into the live phases and mark it active. Agent pins
+ * carried by the profile are returned (not applied) so the caller can write
+ * them to the agent config file it owns.
+ */
 export function applyProfile(cfg: SddModelsConfig, name: string): ProfileResult {
   const key = findProfileKey(cfg, name);
   if (!key || !cfg.profiles?.[key]) {
     return { ok: false, code: "profile-not-found" };
   }
-  const phases = deepClonePhases(cfg.profiles[key].phases);
+  const profile = cfg.profiles[key];
+  const phases = deepClonePhases(profile.phases);
   for (const [phase, phaseConfig] of Object.entries(phases)) {
     cfg.phases[phase] = { ...(cfg.phases[phase] || {}), ...phaseConfig };
   }
   cfg.activeProfile = key;
-  return { ok: true, key };
+  return {
+    ok: true,
+    key,
+    ...(profile.agents ? { agents: deepCloneAgentPins(profile.agents) } : {}),
+  };
 }
 
 export function deleteProfile(cfg: SddModelsConfig, name: string): ProfileResult {

@@ -33,6 +33,25 @@ Phases and configured models used in validation (provider `commandcode`, discove
 
 Aliases: `architecture/specify/planning/implementation/verification` → canonical phases.
 
+### Agents (`config/agents-models.json`)
+
+Subagent model pins live in a separate file so runtime limits stay hand-editable:
+
+```json
+{
+  "defaults": { "maxTurns": 25, "timeoutMs": 600000, "maxParallel": 3 },
+  "agents": {
+    "tdd-guide": { "model": null, "provider": null, "thinking": null, "maxTurns": 40, "timeoutMs": 900000 }
+  }
+}
+```
+
+The `/ecc-models` screen edits `provider`/`model`/`thinking` per agent (the agents
+section, reached with `Tab`) and never touches `maxTurns`/`timeoutMs`/`comment`. The
+roster comes from `config/agents-generated.json`, so an agent without a pin still
+appears in the list. An unset pin means the child inherits the session's
+provider/model. Limits are *not* part of a profile.
+
 ### Profiles (named presets)
 
 The same file stores named presets under `profiles` and the last loaded preset in
@@ -55,9 +74,10 @@ The same file stores named presets under `profiles` and the last loaded preset i
 }
 ```
 
-- Saving a profile snapshots the current `phases`; later edits to the live config do
-  not mutate the preset (deep copy).
-- Loading a profile merges its phases into the live config and marks it active.
+- Saving a profile snapshots the current `phases` and the model pin of every
+  subagent; later edits to the live config do not mutate the preset (deep copy).
+- Loading a profile merges its phases into the live config and applies the agent pins
+  it carries; agents absent from the snapshot keep their current pin.
   Phases missing from the preset are left untouched.
 - Profile names are case-insensitive for lookup and keep the stored casing.
 - `ECC_PI_SDD_CONFIG` overrides the config path (useful for tests and per-project setups).
@@ -78,17 +98,18 @@ ECC_PI_SDD_LANG  >  language in config/sdd-models.json  >  system locale
 
 ## Commands
 
-- `/sdd-model` (alias `/sdd-models`) — interactive menu when UI is available:
-  edit all phases on one screen, load/save/delete profiles, or show the config.
-- `/sdd-model profiles` — list saved profiles with a compact phase summary.
-- `/sdd-model save <name>` — save the current phases as a named profile and activate it.
-- `/sdd-model load <name>` — load and activate a saved profile.
-- `/sdd-model delete <name>` — delete a saved profile.
-- `/sdd-model language [auto|es|en]` — show or change the UI language (`lang` and
+- `/ecc-models` (legacy aliases `/sdd-model`, `/sdd-models`) — interactive menu when UI is available:
+  edit all SDD phases **and every subagent's model pin** on one screen, load/save/delete
+  profiles, or show the config.
+- `/ecc-models profiles` — list saved profiles with a compact phase summary.
+- `/ecc-models save <name>` — save the current phases as a named profile and activate it.
+- `/ecc-models load <name>` — load and activate a saved profile.
+- `/ecc-models delete <name>` — delete a saved profile.
+- `/ecc-models language [auto|es|en]` — show or change the UI language (`lang` and
   `idioma` are accepted aliases).
-- `/sdd-model <phase> <provider> <model> [thinking]` — set one phase (also clears
+- `/ecc-models <phase> <provider> <model> [thinking]` — set one phase (also clears
   `activeProfile`, because the config no longer matches a preset exactly).
-- `/sdd-model <phase> clear` — remove the provider/model/thinking override for a phase.
+- `/ecc-models <phase> clear` — remove the provider/model/thinking override for a phase.
 - `/sdd-spec <feature> <request...>` — switch to `spec` model, prompt phase, target `specs/<feature>/spec.md`.
 - `/sdd-plan <feature>` — switch to `plan` model, read prior artifact(s), target `plan.md` + `tasks.md`.
 - `/sdd-implement <feature> [focus]` — switch to `implement` model, task-by-task execution from `tasks.md`, tests-before-code, mark `- [ ]` → `- [x]` in `tasks.md`.
@@ -97,17 +118,23 @@ ECC_PI_SDD_LANG  >  language in config/sdd-models.json  >  system locale
 
 ### Single-screen editor
 
-With a TUI, choosing “Editar modelos por fase (pantalla única)” renders every phase
+With a TUI, choosing “Editar modelos por fase (pantalla única)” renders two sections.
+The first one lists every phase
 (`spec`, `plan`, `implement`, `review`, `verify`, `light`) with its model and thinking
-level. Navigation and shortcuts:
+level; `Tab` switches to the agents section, which lists every agent from the
+generated subset (see `config/agents-generated.json`) with the same two columns and
+writes to `config/agents-models.json`. Navigation and shortcuts:
 
 | Key | Action |
 |---|---|
-| `↑` / `↓` | Move between phases |
-| `←` / `→` or `Shift+Tab` / `Tab` | Move between the Model and Thinking columns |
+| `Tab` | Switch between the *phases* and *agents* sections |
+| `↑` / `↓` | Move between rows |
+| `PgUp` / `PgDn` | Jump a page in the agents section |
+| `/` | Filter agents by name (agents section only) |
+| `←` / `→` | Move between the Model and Thinking columns |
 | `Enter` | Edit the selected cell (searchable model picker or thinking list) |
-| `Ctrl+S` | Persist the live config to `config/sdd-models.json` |
-| `Ctrl+P` | Save the current config as a named profile (inline name input) |
+| `Ctrl+S` | Persist to `config/sdd-models.json` **and** `config/agents-models.json` |
+| `Ctrl+P` | Save the current config as a named profile (phases + agent pins) |
 | `Esc` | Close the editor; unsaved edits are discarded (with a warning) |
 
 The editor follows the resolved language. The main menu also has an
@@ -147,7 +174,7 @@ For each phase command, the extension:
 
 ### Load & command wiring
 - `pi --offline --mode rpc ... -e ./extensions/ecc-sdd.ts` → **loaded (exit 0)** (also with `ecc-agents.ts`).
-- RPC prompt `/sdd-model` → **handled**, notified full phase config summary.
+- RPC prompt `/ecc-models` → **handled**, notified full phase config summary.
 
 ### Full flow test (test project)
 - **Project:** `.pi-port/test-sdd-project/` (`package.json`, `src/server.mjs`, `tests/placeholder.test.mjs`).
@@ -178,10 +205,10 @@ For each phase command, the extension:
 
 ## How to run
 
-1. Configure phases: `/sdd-model` (or `/sdd-models`) on one screen, or edit
+1. Configure phases: `/ecc-models` (or `/sdd-models`) on one screen, or edit
    `config/sdd-models.json`. Save/load named presets with `Ctrl+P` in the editor or
-   `/sdd-model save|load|delete|profiles`. Change the language with
-   `/sdd-model language auto|es|en`.
+   `/ecc-models save|load|delete|profiles`. Change the language with
+   `/ecc-models language auto|es|en`.
 2. Start Pi with extension: `pi -e ./extensions/ecc-sdd.ts` (from repo/project context).
 3. Run phases (example): `/sdd-spec <feature> <request>`, `/sdd-plan <feature>`, `/sdd-implement <feature>`, `/sdd-review <feature>`, `/sdd-verify <feature>`.
 4. Inspect outputs in `specs/<feature>/` (`spec.md`, `plan.md`, `tasks.md`, `review.md`, `verify.md`, `costs.md`).

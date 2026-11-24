@@ -27,6 +27,7 @@ import {
   saveProfile,
   validateProfileName,
   MAX_PROFILE_NAME_LENGTH,
+  type AgentModelPin,
   type PhaseModelConfig,
   type ProfileResult,
   type SddModelsConfig,
@@ -40,6 +41,18 @@ import {
   type SddLanguage,
   type Translator,
 } from "../lib/ecc-sdd-i18n.ts";
+import {
+  agentPin,
+  agentPinLabel,
+  agentRoster,
+  applyAgentPins,
+  hasAgentPin,
+  loadAgentModels,
+  saveAgentModels,
+  setAgentPin,
+  snapshotAgentPins,
+  type AgentModelsFile,
+} from "../lib/ecc-agent-models.ts";
 
 const execFileAsync = promisify(execFile);
 
@@ -459,16 +472,27 @@ type ModelChoice = { label: string; provider: string; model: string };
 type MenuAction = "edit" | "load" | "save" | "view" | "delete" | "language" | "exit";
 
 interface PhaseEditorState {
-  mode: "table" | "model" | "thinking" | "profileName" | "manualModel";
+  mode: "table" | "model" | "thinking" | "profileName" | "manualModel" | "filter";
+  section: EditorSection;
   row: number;
   col: 0 | 1;
   phases: Record<string, PhaseModelConfig>;
+  agents: Record<string, AgentModelPin>;
+  agentList: string[];
+  offset: number;
   profile: string | null;
   dirty: boolean;
   status: string;
   statusIsError: boolean;
+  /** Row filter for the agents section. */
   filter: string;
+  /** Search box of the model picker; kept apart so it never filters the table. */
+  pickerFilter: string;
 }
+
+type EditorSection = "phases" | "agents";
+
+const AGENT_PANEL_ROWS = 12;
 
 function padCell(text: string, width: number): string {
   const clipped = truncateToWidth(text, width, "…");
@@ -550,11 +574,16 @@ async function editPhasesScreen(
   const result = await ui.custom(
     (tui: any, theme: any, keybindings: any, done: (value: any) => void) => {
       const cfg = loadSddConfig();
+      const agentFile: AgentModelsFile = loadAgentModels();
       const state: PhaseEditorState = {
         mode: "table",
+        section: "phases",
         row: 0,
         col: 0,
         phases: deepClonePhases(cfg.phases),
+        agents: snapshotAgentPins(agentFile),
+        agentList: agentRoster(agentFile),
+        offset: 0,
         profile: cfg.activeProfile || null,
         dirty: false,
         status: cfg.activeProfile
@@ -562,8 +591,19 @@ async function editPhasesScreen(
           : t("editor.statusNoProfile"),
         statusIsError: false,
         filter: "",
+        pickerFilter: "",
       };
-      const rows = Object.keys(state.phases);
+      const phaseRows = () => Object.keys(state.phases);
+      const visibleAgentRows = () => {
+        const query = state.section === "agents" ? state.filter.trim() : "";
+        if (!query) return state.agentList;
+        return fuzzyFilter(
+          state.agentList.map((name) => ({ name })),
+          query,
+          (item) => item.name,
+        ).map((item) => item.name);
+      };
+      const rows = () => (state.section === "phases" ? phaseRows() : visibleAgentRows());
       const modelItems = modelBaseItems(available, t);
       let modelList: SelectList | null = null;
       let thinkingList: SelectList | null = null;
@@ -581,15 +621,63 @@ async function editPhasesScreen(
       };
 
       const normalizeRow = () => {
-        if (!rows.length) {
+        const list = rows();
+        if (!list.length) {
           state.row = 0;
           return;
         }
-        if (state.row < 0) state.row = rows.length - 1;
-        if (state.row >= rows.length) state.row = 0;
+        if (state.row < 0) state.row = list.length - 1;
+        if (state.row >= list.length) state.row = 0;
       };
 
-      const currentPhase = () => rows[state.row];
+      const ensureVisible = () => {
+        if (state.section !== "agents") {
+          state.offset = 0;
+          return;
+        }
+        const total = rows().length;
+        if (state.row < state.offset) state.offset = state.row;
+        if (state.row >= state.offset + AGENT_PANEL_ROWS) state.offset = state.row - AGENT_PANEL_ROWS + 1;
+        const maxOffset = Math.max(0, total - AGENT_PANEL_ROWS);
+        if (state.offset > maxOffset) state.offset = maxOffset;
+        if (state.offset < 0) state.offset = 0;
+      };
+
+      /** Current row label: an SDD phase in the phases section, an agent name otherwise. */
+      const currentPhase = () => rows()[state.row] ?? "";
+
+      const currentThinking = () => {
+        const target = currentPhase();
+        if (state.section === "agents") return state.agents[target]?.thinking ?? "null";
+        return state.phases[target]?.thinking ?? "null";
+      };
+
+      const setCurrentModel = (provider: string | null, model: string | null) => {
+        const target = currentPhase();
+        if (!target) return;
+        if (state.section === "agents") {
+          state.agents[target] = { ...(state.agents[target] || {}), provider, model };
+          return;
+        }
+        state.phases[target] = { ...(state.phases[target] || {}), provider, model };
+      };
+
+      const setCurrentThinking = (value: string | null) => {
+        const target = currentPhase();
+        if (!target) return;
+        if (state.section === "agents") {
+          state.agents[target] = { ...(state.agents[target] || {}), thinking: value };
+          return;
+        }
+        state.phases[target] = { ...(state.phases[target] || {}), thinking: value };
+      };
+
+      /** Every roster agent's pin, so a profile snapshots the whole selector. */
+      const agentPinsForProfile = () => {
+        const out: Record<string, AgentModelPin> = {};
+        for (const name of state.agentList) out[name] = { ...(state.agents[name] || {}) };
+        return out;
+      };
 
       const buildThinkingList = (): SelectList => {
         const items = THINKING_VALUES.map((value) => ({
@@ -597,14 +685,14 @@ async function editPhasesScreen(
           label: value === "null" ? t("editor.thinkingNull") : value,
         }));
         const list = new SelectList(items, items.length, getSelectListTheme());
-        const current = state.phases[currentPhase()]?.thinking ?? "null";
+        const current = currentThinking();
         const index = THINKING_VALUES.indexOf(current as (typeof THINKING_VALUES)[number]);
         if (index >= 0) list.setSelectedIndex(index);
         return list;
       };
 
       const rebuildModelList = () => {
-        modelList = buildModelSelectList(modelItems, state.filter);
+        modelList = buildModelSelectList(modelItems, state.pickerFilter);
       };
 
       const persist = () => {
@@ -612,6 +700,13 @@ async function editPhasesScreen(
         next.phases = deepClonePhases(state.phases);
         next.activeProfile = state.profile;
         saveSddConfig(next);
+        const agentConfig = loadAgentModels();
+        for (const [name, pin] of Object.entries(state.agents)) {
+          // Do not materialize empty entries for agents nobody touched.
+          if (!hasAgentPin(pin) && !agentConfig.agents?.[name]) continue;
+          setAgentPin(agentConfig, name, pin);
+        }
+        saveAgentModels(agentConfig);
         state.dirty = false;
         state.status = state.profile
           ? t("editor.statusSavedProfileActive", { name: state.profile })
@@ -630,7 +725,8 @@ async function editPhasesScreen(
 
       const startManualModel = () => {
         const phase = currentPhase();
-        const current = state.phases[phase] || {};
+        const current =
+          state.section === "agents" ? state.agents[phase] || {} : state.phases[phase] || {};
         state.mode = "manualModel";
         textPurpose = "manual";
         textInput.setValue(current.provider && current.model ? `${current.provider}/${current.model}` : "");
@@ -651,7 +747,7 @@ async function editPhasesScreen(
           }
           const next = loadSddConfig();
           next.phases = deepClonePhases(state.phases);
-          const saved = saveProfile(next, valid.name, state.phases);
+          const saved = saveProfile(next, valid.name, state.phases, undefined, agentPinsForProfile());
           if (!saved.ok) {
             setStatus(translateProfileError(t, saved, valid.name), true);
             tui.requestRender();
@@ -668,7 +764,7 @@ async function editPhasesScreen(
             tui.requestRender();
             return;
           }
-          state.phases[phase] = { ...(state.phases[phase] || {}), provider: parsed.provider, model: parsed.model };
+          setCurrentModel(parsed.provider, parsed.model);
           markDirty();
           setStatus(t("editor.statusModelSet", { phase, model: `${parsed.provider}/${parsed.model}` }));
         }
@@ -679,7 +775,7 @@ async function editPhasesScreen(
 
       const openModelPicker = () => {
         state.mode = "model";
-        state.filter = "";
+        state.pickerFilter = "";
         textInput.setValue("");
         textInput.focused = true;
         rebuildModelList();
@@ -697,7 +793,7 @@ async function editPhasesScreen(
       const applyModelChoice = (value: string) => {
         const phase = currentPhase();
         if (value === "__clear__") {
-          state.phases[phase] = { ...(state.phases[phase] || {}), provider: null, model: null };
+          setCurrentModel(null, null);
           markDirty();
           setStatus(t("editor.statusModelCleared", { phase }));
           state.mode = "table";
@@ -710,7 +806,7 @@ async function editPhasesScreen(
             setStatus(t("editor.statusManualInvalid"), true);
             return;
           }
-          state.phases[phase] = { ...(state.phases[phase] || {}), provider: parsed.provider, model: parsed.model };
+          setCurrentModel(parsed.provider, parsed.model);
           markDirty();
           setStatus(t("editor.statusModelSet", { phase, model: `${parsed.provider}/${parsed.model}` }));
           state.mode = "table";
@@ -720,7 +816,7 @@ async function editPhasesScreen(
 
       const applyThinkingChoice = (value: string) => {
         const phase = currentPhase();
-        state.phases[phase] = { ...(state.phases[phase] || {}), thinking: value === "null" ? null : value };
+        setCurrentThinking(value === "null" ? null : value);
         markDirty();
         setStatus(t("editor.statusThinkingSet", { phase, value }));
         state.mode = "table";
@@ -728,21 +824,27 @@ async function editPhasesScreen(
 
       const renderTable = (width: number): string[] => {
         const lines: string[] = [];
+        const isAgents = state.section === "agents";
+        const list = rows();
         const profileLabel = state.profile
           ? t("editor.profile", { name: state.profile })
           : t("editor.profileCustom");
-        lines.push(theme.bold(theme.fg("accent", t("editor.title"))));
+        const sectionLabel = isAgents
+          ? t("editor.sectionAgents", { count: state.agentList.length })
+          : t("editor.sectionPhases", { count: list.length });
+        lines.push(theme.bold(theme.fg("accent", `${t("editor.title")}${sectionLabel}`)));
         lines.push(theme.fg("muted", `${profileLabel}${state.dirty ? t("editor.unsaved") : ""}`));
         lines.push("");
 
-        const phaseWidth = Math.max(9, Math.min(16, Math.max(...rows.map((row) => row.length), 4) + 3));
-        const modelWidth = Math.max(16, Math.min(width - phaseWidth - 12, Math.max(22, Math.floor(width * 0.52))));
-        const thinkingWidth = Math.max(8, width - phaseWidth - modelWidth);
+        const widest = Math.max(...list.map((row) => row.length), 4);
+        const nameWidth = isAgents ? Math.max(12, Math.min(26, widest + 3)) : Math.max(9, Math.min(16, widest + 3));
+        const modelWidth = Math.max(16, Math.min(width - nameWidth - 12, Math.max(22, Math.floor(width * 0.52))));
+        const thinkingWidth = Math.max(8, width - nameWidth - modelWidth);
         lines.push(
           theme.fg(
             "dim",
             truncateToWidth(
-              padCell(t("editor.headerPhase"), phaseWidth) +
+              padCell(t(isAgents ? "editor.headerAgent" : "editor.headerPhase"), nameWidth) +
                 padCell(t("editor.headerModel"), modelWidth) +
                 padCell(t("editor.headerThinking"), thinkingWidth),
               width,
@@ -751,10 +853,11 @@ async function editPhasesScreen(
           ),
         );
 
-        rows.forEach((phase, index) => {
-          const phaseConfig = state.phases[phase] || {};
-          const isRow = index === state.row;
-          const phaseCell = padCell(`${isRow ? "› " : "  "}${phase}`, phaseWidth);
+        const windowed = isAgents ? list.slice(state.offset, state.offset + AGENT_PANEL_ROWS) : list;
+        windowed.forEach((name, index) => {
+          const isRow = (isAgents ? state.offset + index : index) === state.row;
+          const phaseConfig = (isAgents ? state.agents[name] || {} : state.phases[name] || {}) as PhaseModelConfig;
+          const phaseCell = padCell(`${isRow ? "› " : "  "}${name}`, nameWidth);
           const modelCell = padCell(phaseModelLabel(phaseConfig, t), modelWidth);
           const thinkingCell = padCell(phaseConfig.thinking ?? "null", thinkingWidth);
           const styledPhase = isRow ? theme.fg("accent", phaseCell) : phaseCell;
@@ -763,9 +866,21 @@ async function editPhasesScreen(
           lines.push(truncateToWidth(styledPhase + styledModel + styledThinking, width, ""));
         });
 
-        if (!rows.length) lines.push(theme.fg("warning", t("editor.statusNoPhases")));
+        if (!list.length) {
+          lines.push(theme.fg("warning", t(isAgents ? "editor.statusNoAgents" : "editor.statusNoPhases")));
+        }
         lines.push("");
-        lines.push(theme.fg("dim", truncateToWidth(t("editor.tableHints"), width, "")));
+        if (isAgents) {
+          const from = list.length ? state.offset + 1 : 0;
+          const to = Math.min(state.offset + AGENT_PANEL_ROWS, list.length);
+          lines.push(
+            theme.fg("dim", truncateToWidth(t("editor.agentWindow", { from, to, total: list.length }), width, "")),
+          );
+          if (state.filter.trim()) {
+            lines.push(theme.fg("accent", truncateToWidth(t("editor.filterActive", { query: state.filter }), width, "")));
+          }
+        }
+        lines.push(theme.fg("dim", truncateToWidth(t(isAgents ? "editor.tableHintsAgents" : "editor.tableHints"), width, "")));
         if (state.status) {
           lines.push(theme.fg(state.statusIsError ? "error" : "muted", truncateToWidth(state.status, width, "")));
         }
@@ -775,7 +890,7 @@ async function editPhasesScreen(
       const renderPicker = (width: number): string[] => {
         const isModel = state.mode === "model";
         const phase = currentPhase();
-        const phaseConfig = state.phases[phase] || {};
+        const phaseConfig = (state.section === "agents" ? state.agents[phase] || {} : state.phases[phase] || {}) as PhaseModelConfig;
         const lines: string[] = [];
         lines.push(
           theme.bold(
@@ -821,8 +936,7 @@ async function editPhasesScreen(
       };
 
       const renderTextMode = (width: number): string[] => {
-        const isProfile = state.mode === "profileName";
-        const lines: string[] = [
+        const isProfile = state.mode === "profileName";        const lines: string[] = [
           theme.bold(
             theme.fg(
               "accent",
@@ -847,12 +961,29 @@ async function editPhasesScreen(
         return lines;
       };
 
+      const renderFilter = (width: number): string[] => {
+        const list = rows();
+        const lines: string[] = [
+          theme.bold(theme.fg("accent", t("editor.filterTitle"))),
+          theme.fg("muted", t("editor.filterDescription", { count: list.length, total: state.agentList.length })),
+          "",
+          ...textInput.render(width),
+          "",
+          theme.fg("dim", truncateToWidth(t("editor.filterHints"), width, "")),
+        ];
+        if (state.status) {
+          lines.push(theme.fg(state.statusIsError ? "error" : "muted", truncateToWidth(state.status, width, "")));
+        }
+        return lines;
+      };
+
       return {
         focused: true,
         invalidate() {},
         render(width: number): string[] {
           if (state.mode === "table") return renderTable(width);
           if (state.mode === "model" || state.mode === "thinking") return renderPicker(width);
+          if (state.mode === "filter") return renderFilter(width);
           return renderTextMode(width);
         },
         handleInput(data: string): void {
@@ -863,6 +994,27 @@ async function editPhasesScreen(
               return false;
             }
           };
+
+          if (state.mode === "filter") {
+            if (matchesKey(data, "escape")) {
+              state.filter = "";
+              state.mode = "table";
+              state.row = 0;
+              state.offset = 0;
+              textInput.focused = false;
+              setStatus(t("editor.filterCleared"));
+            } else if (matchesKey(data, "enter") || matchesKey(data, "tab")) {
+              state.mode = "table";
+              textInput.focused = false;
+            } else {
+              textInput.handleInput(data);
+              state.filter = textInput.getValue();
+              state.row = 0;
+              state.offset = 0;
+            }
+            tui.requestRender();
+            return;
+          }
 
           if (state.mode === "profileName" || state.mode === "manualModel") {
             if (matchesKey(data, "escape")) {
@@ -899,8 +1051,8 @@ async function editPhasesScreen(
             } else {
               textInput.handleInput(data);
               const nextFilter = textInput.getValue();
-              if (nextFilter !== state.filter) {
-                state.filter = nextFilter;
+              if (nextFilter !== state.pickerFilter) {
+                state.pickerFilter = nextFilter;
                 rebuildModelList();
               }
             }
@@ -946,16 +1098,42 @@ async function editPhasesScreen(
           if (kbMatch("tui.select.up")) {
             state.row -= 1;
             normalizeRow();
+            ensureVisible();
           } else if (kbMatch("tui.select.down")) {
             state.row += 1;
             normalizeRow();
-          } else if (matchesKey(data, "left") || matchesKey(data, "shift+tab")) {
+            ensureVisible();
+          } else if (kbMatch("tui.select.pageUp")) {
+            state.row = Math.max(0, state.row - AGENT_PANEL_ROWS);
+            ensureVisible();
+          } else if (kbMatch("tui.select.pageDown")) {
+            state.row = Math.min(Math.max(0, rows().length - 1), state.row + AGENT_PANEL_ROWS);
+            ensureVisible();
+          } else if (matchesKey(data, "tab") || matchesKey(data, "shift+tab")) {
+            state.section = state.section === "phases" ? "agents" : "phases";
+            state.row = 0;
+            state.offset = 0;
+            state.filter = "";
+            textInput.setValue("");
+            setStatus(
+              state.section === "agents"
+                ? t("editor.statusAgentsSection", { count: state.agentList.length })
+                : t("editor.statusPhasesSection"),
+            );
+          } else if (matchesKey(data, "/") && state.section === "agents") {
+            state.mode = "filter";
+            textInput.setValue(state.filter);
+            textInput.focused = true;
+            state.row = 0;
+            state.offset = 0;
+            setStatus(t("editor.filterTitle"));
+          } else if (matchesKey(data, "left")) {
             state.col = 0;
-          } else if (matchesKey(data, "right") || matchesKey(data, "tab")) {
+          } else if (matchesKey(data, "right")) {
             state.col = 1;
           } else if (matchesKey(data, "enter")) {
-            if (!rows.length) {
-              setStatus(t("editor.statusNoPhases"), true);
+            if (!rows().length) {
+              setStatus(t(state.section === "agents" ? "editor.statusNoAgents" : "editor.statusNoPhases"), true);
             } else if (state.col === 0) {
               openModelPicker();
             } else {
@@ -1035,6 +1213,11 @@ async function runSddModelInteractive(ctx: ExtensionCommandContext): Promise<boo
         continue;
       }
       saveSddConfig(cfg);
+      if (applied.agents) {
+        const agentFile = loadAgentModels();
+        applyAgentPins(agentFile, applied.agents);
+        saveAgentModels(agentFile);
+      }
       notify(ctx, t("profile.loaded", { name: applied.key }), "info");
       continue;
     }
@@ -1045,7 +1228,7 @@ async function runSddModelInteractive(ctx: ExtensionCommandContext): Promise<boo
         cfg.activeProfile || t("profile.namePlaceholder"),
       );
       if (name == null) continue;
-      const saved = saveProfile(cfg, name, cfg.phases);
+      const saved = saveProfile(cfg, name, cfg.phases, undefined, snapshotAgentPins(loadAgentModels()));
       if (!saved.ok) {
         notify(ctx, translateProfileError(t, saved, name), "error");
         continue;
@@ -1177,7 +1360,7 @@ export default function eccSddExtension(pi: any): void {
 
     const switchResult = await switchToPhaseModel(pi, ctx, phase);
     if (!switchResult.ok) {
-      notify(ctx, `SDD model switch failed for phase '${phase}': ${switchResult.reason} (${switchResult.label}). Aborting phase. Configure with /sdd-model.`, "error");
+      notify(ctx, `SDD model switch failed for phase '${phase}': ${switchResult.reason} (${switchResult.label}). Aborting phase. Configure with /ecc-models.`, "error");
       return;
     }
 
@@ -1230,7 +1413,7 @@ export default function eccSddExtension(pi: any): void {
     const command = parts[0].toLowerCase();
     const rest = parts.slice(1).join(" ").trim();
 
-    // Profile commands: /sdd-model save <name> | load <name> | delete <name> | profiles
+    // Profile commands: /ecc-models save <name> | load <name> | delete <name> | profiles
     if (command === "profiles" || command === "list") {
       const names = listProfiles(cfg);
       if (!names.length) {
@@ -1249,7 +1432,7 @@ export default function eccSddExtension(pi: any): void {
         notify(ctx, t("cli.usage"), "error");
         return;
       }
-      const saved = saveProfile(cfg, rest, cfg.phases);
+      const saved = saveProfile(cfg, rest, cfg.phases, undefined, snapshotAgentPins(loadAgentModels()));
       if (!saved.ok) {
         notify(ctx, translateProfileError(t, saved, rest), "error");
         return;
@@ -1269,6 +1452,11 @@ export default function eccSddExtension(pi: any): void {
         return;
       }
       saveSddConfig(cfg);
+      if (applied.agents) {
+        const agentFile = loadAgentModels();
+        applyAgentPins(agentFile, applied.agents);
+        saveAgentModels(agentFile);
+      }
       notify(ctx, t("profile.loaded", { name: applied.key }), "info");
       return;
     }
@@ -1287,7 +1475,7 @@ export default function eccSddExtension(pi: any): void {
       return;
     }
 
-    // Language commands: /sdd-model language [auto|es|en]
+    // Language commands: /ecc-models language [auto|es|en]
     if (command === "language" || command === "lang" || command === "idioma") {
       if (!rest) {
         notify(ctx, t("language.current", { value: languageLabel(t, cfg.language) }), "info");
@@ -1305,7 +1493,7 @@ export default function eccSddExtension(pi: any): void {
       return;
     }
 
-    // Phase commands: /sdd-model <phase> clear | /sdd-model <phase> <provider> <model> [thinking]
+    // Phase commands: /ecc-models <phase> clear | /ecc-models <phase> <provider> <model> [thinking]
     const phase = resolvePhase(cfg, parts[0]);
     if (!phase) {
       notify(ctx, t("cli.unknownPhase", { phase: parts[0], list: phaseList(cfg).join(", ") }), "error");
@@ -1331,14 +1519,19 @@ export default function eccSddExtension(pi: any): void {
     notify(ctx, t("cli.set", { phase, provider, model, thinking: thinking ?? "null" }), "info");
   };
 
-  pi.registerCommand("sdd-model", {
+  pi.registerCommand("ecc-models", {
     description:
-      "Edit SDD phase models on one screen, save/load named profiles (config/sdd-models.json) — interactive when UI is available",
+      "Edit model pins for every SDD phase and every ECC subagent on one screen; save/load named profiles across both files — interactive when UI is available",
+    handler: sddModelHandler,
+  });
+
+  pi.registerCommand("sdd-model", {
+    description: "Deprecated alias of /ecc-models: phase and subagent model pins",
     handler: sddModelHandler,
   });
 
   pi.registerCommand("sdd-models", {
-    description: "Alias of /sdd-model: SDD phase models and named profiles",
+    description: "Deprecated alias of /ecc-models: phase and subagent model pins",
     handler: sddModelHandler,
   });
 
