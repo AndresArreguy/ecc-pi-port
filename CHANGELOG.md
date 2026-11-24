@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-24
+
 - **Subset completo de agentes**: `config/agents-subset.json` pasa de 6 a los 68 agentes de `ecc/agents/` (28 con `write`/`edit`, 40 de sólo lectura). Se regenera con `npm run build` (no `build:agents` solo, que deja `sourceRef` en null y rompe `build:check`).
 - **Límites por agente**: `config/agents-models.json` sube los defaults a `maxTurns: 25`, `timeoutMs: 600000`, `maxParallel: 3` y fija overrides para los que escriben (`tdd-guide`, `code-simplifier`, `refactor-cleaner` 40/15 min; `e2e-runner` 45/20 min; `build-error-resolver` 30/10 min).
 - **`/ecc-models`** reemplaza a `/sdd-model` (que queda como alias, junto con `/sdd-models`) y suma una **sección de agentes**: `Tab` alterna fases/agentes, `/` filtra por nombre, `PgUp`/`PgDn` recorren el roster y `Ctrl+S` persiste fases y pines en sus dos archivos. Nunca toca `maxTurns`/`timeoutMs`/comentarios.
