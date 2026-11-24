@@ -1,9 +1,9 @@
 {
-  "description": "Per-agent model and runtime limits for the Pi ECC agents port. Edit model fields to pin specific provider/model (and optional thinking) per agent.",
+  "description": "Per-agent model and runtime limits for the Pi ECC agents port. Edit model fields to pin specific provider/model (and optional thinking) per agent. Runtime limits: maxTurns/timeoutMs are per agent (falling back to defaults), maxParallel is read from defaults only.",
   "defaults": {
-    "maxTurns": 12,
-    "timeoutMs": 300000,
-    "maxParallel": 2
+    "maxTurns": 25,
+    "timeoutMs": 600000,
+    "maxParallel": 3
   },
   "agents": {
     "planner": {
@@ -26,17 +26,60 @@
       "model": null,
       "provider": null,
       "thinking": null,
-      "comment": "Example: use a cheaper/faster model for build fixes."
+      "comment": "Example: use a cheaper/faster model for build fixes.",
+      "maxTurns": 30,
+      "timeoutMs": 600000
     },
     "tdd-guide": {
       "model": null,
       "provider": null,
-      "thinking": null
+      "thinking": null,
+      "maxTurns": 40,
+      "timeoutMs": 900000
     },
     "architect": {
       "model": null,
       "provider": null,
       "thinking": null
+    },
+    "code-simplifier": {
+      "model": null,
+      "provider": null,
+      "thinking": null,
+      "maxTurns": 40,
+      "timeoutMs": 900000
+    },
+    "refactor-cleaner": {
+      "model": null,
+      "provider": null,
+      "thinking": null,
+      "maxTurns": 40,
+      "timeoutMs": 900000
+    },
+    "e2e-runner": {
+      "model": null,
+      "provider": null,
+      "thinking": null,
+      "maxTurns": 45,
+      "timeoutMs": 1200000
+    },
+    "performance-optimizer": {
+      "model": null,
+      "provider": null,
+      "thinking": null,
+      "maxTurns": 30
+    },
+    "a11y-architect": {
+      "model": null,
+      "provider": null,
+      "thinking": null,
+      "maxTurns": 30
+    },
+    "doc-updater": {
+      "model": null,
+      "provider": null,
+      "thinking": null,
+      "maxTurns": 20
     }
   }
 }
