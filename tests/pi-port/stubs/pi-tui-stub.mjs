@@ -15,7 +15,15 @@ export class Input {
   getValue() {
     return this.value;
   }
-  handleInput() {}
+  handleInput(data) {
+    if (typeof data !== "string" || !data) return;
+    if (data === "\x7f" || data === "\b") {
+      this.value = this.value.slice(0, -1);
+      return;
+    }
+    if (data === "\r" || data === "\n" || data === "\t" || data.startsWith("\x1b")) return;
+    if (data >= " ") this.value += data;
+  }
   render() {
     return [this.value];
   }
@@ -47,8 +55,34 @@ export function fuzzyFilter(items, query, getText) {
   });
 }
 
-export function matchesKey() {
-  return false;
+const SPECIAL_KEYS = {
+  tab: ["\t"],
+  "shift+tab": ["\x1b[Z"],
+  escape: ["\x1b"],
+  esc: ["\x1b"],
+  enter: ["\r", "\n"],
+  return: ["\r", "\n"],
+  space: [" "],
+  backspace: ["\x7f", "\b"],
+  delete: ["\x1b[3~"],
+  up: ["\x1b[A"],
+  down: ["\x1b[B"],
+  right: ["\x1b[C"],
+  left: ["\x1b[D"],
+  pageUp: ["\x1b[5~"],
+  pageDown: ["\x1b[6~"],
+  "ctrl+s": ["\x13"],
+  "ctrl+p": ["\x10"],
+  "ctrl+t": ["\x14"],
+};
+
+export function matchesKey(data, keyId) {
+  if (typeof data !== "string" || !data) return false;
+  const id = String(keyId);
+  const sequences = SPECIAL_KEYS[id];
+  if (sequences) return sequences.includes(data);
+  // Symbols and letters: a single literal character.
+  return data === id;
 }
 
 export function truncateToWidth(text, width) {

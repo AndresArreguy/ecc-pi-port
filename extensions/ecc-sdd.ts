@@ -488,9 +488,14 @@ interface PhaseEditorState {
   filter: string;
   /** Search box of the model picker; kept apart so it never filters the table. */
   pickerFilter: string;
+  /** Rows the open picker writes to: the current row, or every visible row (bulk). */
+  scope: PickerScope;
 }
 
 type EditorSection = "phases" | "agents";
+
+/** A picker edits one row, or the whole visible list when applied in bulk. */
+type PickerScope = "row" | "all";
 
 const AGENT_PANEL_ROWS = 12;
 
@@ -592,6 +597,7 @@ async function editPhasesScreen(
         statusIsError: false,
         filter: "",
         pickerFilter: "",
+        scope: "row",
       };
       const phaseRows = () => Object.keys(state.phases);
       const visibleAgentRows = () => {
@@ -646,31 +652,77 @@ async function editPhasesScreen(
       /** Current row label: an SDD phase in the phases section, an agent name otherwise. */
       const currentPhase = () => rows()[state.row] ?? "";
 
+      /** Config of one row, whether the section shows a phase or an agent. */
+      const rowConfig = (name: string): PhaseModelConfig =>
+        (state.section === "agents" ? state.agents[name] || {} : state.phases[name] || {}) as PhaseModelConfig;
+
+      /** Rows the open picker writes to: the current row, or every visible row in bulk mode. */
+      const editTargets = (): string[] => (state.scope === "all" ? rows() : [currentPhase()].filter(Boolean));
+
       const currentThinking = () => {
-        const target = currentPhase();
-        if (state.section === "agents") return state.agents[target]?.thinking ?? "null";
-        return state.phases[target]?.thinking ?? "null";
+        if (state.scope === "all") {
+          const values = new Set(rows().map((name) => rowConfig(name).thinking ?? "null"));
+          return values.size === 1 ? [...values][0] : "";
+        }
+        return rowConfig(currentPhase()).thinking ?? "null";
       };
 
-      const setCurrentModel = (provider: string | null, model: string | null) => {
-        const target = currentPhase();
-        if (!target) return;
-        if (state.section === "agents") {
-          state.agents[target] = { ...(state.agents[target] || {}), provider, model };
-          return;
+      const setModelFor = (targets: string[], provider: string | null, model: string | null) => {
+        for (const target of targets) {
+          if (!target) continue;
+          if (state.section === "agents") {
+            state.agents[target] = { ...(state.agents[target] || {}), provider, model };
+          } else {
+            state.phases[target] = { ...(state.phases[target] || {}), provider, model };
+          }
         }
-        state.phases[target] = { ...(state.phases[target] || {}), provider, model };
       };
 
-      const setCurrentThinking = (value: string | null) => {
-        const target = currentPhase();
-        if (!target) return;
-        if (state.section === "agents") {
-          state.agents[target] = { ...(state.agents[target] || {}), thinking: value };
-          return;
+      const setThinkingFor = (targets: string[], value: string | null) => {
+        for (const target of targets) {
+          if (!target) continue;
+          if (state.section === "agents") {
+            state.agents[target] = { ...(state.agents[target] || {}), thinking: value };
+          } else {
+            state.phases[target] = { ...(state.phases[target] || {}), thinking: value };
+          }
         }
-        state.phases[target] = { ...(state.phases[target] || {}), thinking: value };
       };
+
+      /** Picker heading, aware of the bulk scope. */
+      const pickerTitle = (isModel: boolean): string => {
+        if (state.scope === "all") {
+          return isModel
+            ? t("editor.pickerModelTitleAll", { count: rows().length })
+            : t("editor.pickerThinkingTitleAll", { count: rows().length });
+        }
+        return isModel
+          ? t("editor.pickerModelTitle", { phase: currentPhase() })
+          : t("editor.pickerThinkingTitle", { phase: currentPhase() });
+      };
+
+      /** "Current" line of the picker; bulk mode collapses a mixed list into one label. */
+      const currentValueLabel = (isModel: boolean): string => {
+        const label = (name: string) =>
+          isModel ? phaseModelLabel(rowConfig(name), t) : rowConfig(name).thinking ?? "null";
+        if (state.scope === "all") {
+          const values = new Set(rows().map(label));
+          return values.size === 1 ? [...values][0] : t("editor.currentMixed");
+        }
+        return label(currentPhase());
+      };
+
+      /** Status line after a model edit, counting rows in bulk mode. */
+      const modelStatus = (targets: string[], model: string | null): string =>
+        state.scope === "all"
+          ? t(model ? "editor.statusModelSetAll" : "editor.statusModelClearedAll", {
+              count: targets.length,
+              model: model ?? "",
+            })
+          : t(model ? "editor.statusModelSet" : "editor.statusModelCleared", {
+              phase: targets[0] ?? "",
+              model: model ?? "",
+            });
 
       /** Every roster agent's pin, so a profile snapshots the whole selector. */
       const agentPinsForProfile = () => {
@@ -737,7 +789,6 @@ async function editPhasesScreen(
 
       const commitText = () => {
         const value = textInput.getValue().trim();
-        const phase = currentPhase();
         if (textPurpose === "profile") {
           const valid = validateProfileName(value);
           if (!valid.ok) {
@@ -764,39 +815,51 @@ async function editPhasesScreen(
             tui.requestRender();
             return;
           }
-          setCurrentModel(parsed.provider, parsed.model);
+          const targets = editTargets();
+          setModelFor(targets, parsed.provider, parsed.model);
           markDirty();
-          setStatus(t("editor.statusModelSet", { phase, model: `${parsed.provider}/${parsed.model}` }));
+          setStatus(modelStatus(targets, `${parsed.provider}/${parsed.model}`));
         }
         state.mode = "table";
         textPurpose = null;
+        state.scope = "row";
         textInput.focused = false;
       };
 
-      const openModelPicker = () => {
+      const openModelPicker = (scope: PickerScope = "row") => {
         state.mode = "model";
+        state.scope = scope;
         state.pickerFilter = "";
         textInput.setValue("");
         textInput.focused = true;
         rebuildModelList();
-        setStatus(t("editor.pickerModelTitle", { phase: currentPhase() }));
+        setStatus(pickerTitle(true));
         tui.requestRender();
       };
 
-      const openThinkingPicker = () => {
+      const openThinkingPicker = (scope: PickerScope = "row") => {
         state.mode = "thinking";
+        state.scope = scope;
         thinkingList = buildThinkingList();
-        setStatus(t("editor.pickerThinkingTitle", { phase: currentPhase() }));
+        setStatus(pickerTitle(false));
         tui.requestRender();
       };
 
       const applyModelChoice = (value: string) => {
-        const phase = currentPhase();
-        if (value === "__clear__") {
-          setCurrentModel(null, null);
-          markDirty();
-          setStatus(t("editor.statusModelCleared", { phase }));
+        const targets = editTargets();
+        if (!targets.length) {
+          setStatus(t("editor.statusNoAgents"), true);
           state.mode = "table";
+          state.scope = "row";
+          textInput.focused = false;
+          return;
+        }
+        if (value === "__clear__") {
+          setModelFor(targets, null, null);
+          markDirty();
+          setStatus(modelStatus(targets, null));
+          state.mode = "table";
+          state.scope = "row";
           textInput.focused = false;
         } else if (value === "__manual__") {
           startManualModel();
@@ -806,20 +869,32 @@ async function editPhasesScreen(
             setStatus(t("editor.statusManualInvalid"), true);
             return;
           }
-          setCurrentModel(parsed.provider, parsed.model);
+          setModelFor(targets, parsed.provider, parsed.model);
           markDirty();
-          setStatus(t("editor.statusModelSet", { phase, model: `${parsed.provider}/${parsed.model}` }));
+          setStatus(modelStatus(targets, `${parsed.provider}/${parsed.model}`));
           state.mode = "table";
+          state.scope = "row";
           textInput.focused = false;
         }
       };
 
       const applyThinkingChoice = (value: string) => {
-        const phase = currentPhase();
-        setCurrentThinking(value === "null" ? null : value);
+        const targets = editTargets();
+        if (!targets.length) {
+          setStatus(t("editor.statusNoAgents"), true);
+          state.mode = "table";
+          state.scope = "row";
+          return;
+        }
+        setThinkingFor(targets, value === "null" ? null : value);
         markDirty();
-        setStatus(t("editor.statusThinkingSet", { phase, value }));
+        setStatus(
+          state.scope === "all"
+            ? t("editor.statusThinkingSetAll", { count: targets.length, value })
+            : t("editor.statusThinkingSet", { phase: targets[0] ?? "", value }),
+        );
         state.mode = "table";
+        state.scope = "row";
       };
 
       const renderTable = (width: number): string[] => {
@@ -889,27 +964,9 @@ async function editPhasesScreen(
 
       const renderPicker = (width: number): string[] => {
         const isModel = state.mode === "model";
-        const phase = currentPhase();
-        const phaseConfig = (state.section === "agents" ? state.agents[phase] || {} : state.phases[phase] || {}) as PhaseModelConfig;
         const lines: string[] = [];
-        lines.push(
-          theme.bold(
-            theme.fg(
-              "accent",
-              isModel
-                ? t("editor.pickerModelTitle", { phase })
-                : t("editor.pickerThinkingTitle", { phase }),
-            ),
-          ),
-        );
-        lines.push(
-          theme.fg(
-            "muted",
-            t("editor.current", {
-              value: isModel ? phaseModelLabel(phaseConfig, t) : phaseConfig.thinking ?? "null",
-            }),
-          ),
-        );
+        lines.push(theme.bold(theme.fg("accent", pickerTitle(isModel))));
+        lines.push(theme.fg("muted", t("editor.current", { value: currentValueLabel(isModel) })));
         lines.push("");
         if (isModel) {
           lines.push(theme.fg("dim", t("editor.search")));
@@ -942,7 +999,9 @@ async function editPhasesScreen(
               "accent",
               isProfile
                 ? t("editor.saveProfileTitle")
-                : t("editor.manualModelTitle", { phase: currentPhase() }),
+                : state.scope === "all"
+                  ? t("editor.manualModelTitleAll", { count: rows().length })
+                  : t("editor.manualModelTitle", { phase: currentPhase() }),
             ),
           ),
           theme.fg("muted", t(isProfile ? "editor.saveProfileDescription" : "editor.manualModelDescription")),
@@ -1033,9 +1092,11 @@ async function editPhasesScreen(
 
           if (state.mode === "model") {
             if (matchesKey(data, "escape")) {
+              const title = pickerTitle(true);
               state.mode = "table";
+              state.scope = "row";
               textInput.focused = false;
-              setStatus(t("editor.pickerModelTitle", { phase: currentPhase() }));
+              setStatus(title);
             } else if (matchesKey(data, "ctrl+s")) {
               persist();
             } else if (
@@ -1062,8 +1123,10 @@ async function editPhasesScreen(
 
           if (state.mode === "thinking") {
             if (matchesKey(data, "escape")) {
+              const title = pickerTitle(false);
               state.mode = "table";
-              setStatus(t("editor.pickerThinkingTitle", { phase: currentPhase() }));
+              state.scope = "row";
+              setStatus(title);
             } else if (matchesKey(data, "ctrl+s")) {
               persist();
             } else if (
@@ -1105,11 +1168,13 @@ async function editPhasesScreen(
             ensureVisible();
           } else if (kbMatch("tui.select.pageUp")) {
             state.row = Math.max(0, state.row - AGENT_PANEL_ROWS);
+            state.offset = state.row;
             ensureVisible();
           } else if (kbMatch("tui.select.pageDown")) {
             state.row = Math.min(Math.max(0, rows().length - 1), state.row + AGENT_PANEL_ROWS);
+            state.offset = state.row;
             ensureVisible();
-          } else if (matchesKey(data, "tab") || matchesKey(data, "shift+tab")) {
+          } else if (matchesKey(data, "tab") || matchesKey(data, "ctrl+t")) {
             state.section = state.section === "phases" ? "agents" : "phases";
             state.row = 0;
             state.offset = 0;
@@ -1127,6 +1192,11 @@ async function editPhasesScreen(
             state.row = 0;
             state.offset = 0;
             setStatus(t("editor.filterTitle"));
+          } else if (state.section === "agents" && (matchesKey(data, "a") || matchesKey(data, "shift+a"))) {
+            // Bulk apply: same model for every visible agent row.
+            openModelPicker("all");
+          } else if (state.section === "agents" && (matchesKey(data, "t") || matchesKey(data, "shift+t"))) {
+            openThinkingPicker("all");
           } else if (matchesKey(data, "left")) {
             state.col = 0;
           } else if (matchesKey(data, "right")) {
@@ -1493,6 +1563,45 @@ export default function eccSddExtension(pi: any): void {
       return;
     }
 
+    // Bulk agent pins: /ecc-models agents <provider> <model> [thinking] | /ecc-models agents clear
+    if (command === "agents" || command === "agentes") {
+      const parts = rest.split(/\s+/).filter(Boolean);
+      const clear = parts.length === 1 && parts[0].toLowerCase() === "clear";
+      let pin: AgentModelPin;
+      if (clear) {
+        pin = { provider: null, model: null, thinking: null };
+      } else if (parts.length >= 2) {
+        // Thinking is only overwritten when given, so a bulk model swap keeps it.
+        pin = parts[2]
+          ? { provider: parts[0], model: parts[1], thinking: parts[2] }
+          : { provider: parts[0], model: parts[1] };
+      } else {
+        notify(ctx, t("cli.usage"), "error");
+        return;
+      }
+      const agentFile = loadAgentModels();
+      const names = agentRoster(agentFile);
+      if (!names.length) {
+        notify(ctx, t("cli.noAgents"), "error");
+        return;
+      }
+      for (const name of names) setAgentPin(agentFile, name, pin);
+      saveAgentModels(agentFile);
+      notify(
+        ctx,
+        clear
+          ? t("cli.clearedAllAgents", { count: names.length })
+          : t("cli.setAllAgents", {
+              count: names.length,
+              provider: parts[0],
+              model: parts[1],
+              thinking: parts[2] ?? "null",
+            }),
+        "info",
+      );
+      return;
+    }
+
     // Phase commands: /ecc-models <phase> clear | /ecc-models <phase> <provider> <model> [thinking]
     const phase = resolvePhase(cfg, parts[0]);
     if (!phase) {
@@ -1521,7 +1630,7 @@ export default function eccSddExtension(pi: any): void {
 
   pi.registerCommand("ecc-models", {
     description:
-      "Edit model pins for every SDD phase and every ECC subagent on one screen; save/load named profiles across both files — interactive when UI is available",
+      "Edit model pins for every SDD phase and every ECC subagent on one screen (A applies one model to all agents); save/load named profiles across both files — interactive when UI is available",
     handler: sddModelHandler,
   });
 

@@ -177,8 +177,9 @@ provider/model/thinking por agente).
 modelo/thinking (`Ctrl+S` guarda, `Ctrl+P` guarda un perfil con nombre); `Tab`
 cambia a una segunda sección con las mismas columnas de modelo/thinking para los
 **68 subagentes**, así `run_agent` usa un modelo fijado por agente
-(`config/agents-models.json`, sin tocar los límites). Los perfiles guardan fases
-*y* pines de agentes. Los perfiles también se manejan con
+(`config/agents-models.json`, sin tocar los límites). `A` fija un modelo para toda la
+lista (`T` para el thinking), o `/ecc-models agents <provider> <model>` desde la CLI.
+Los perfiles guardan fases *y* pines de agentes. Los perfiles también se manejan con
 `/ecc-models save|load|delete|profiles`. La UI sigue el locale del sistema,
 `language` del config o `ECC_PI_SDD_LANG` (`auto|es|en`), y
 `/ecc-models language` lo cambia. Los artefactos van a

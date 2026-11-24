@@ -178,7 +178,9 @@ provider/model/thinking per agent).
 model/thinking (`Ctrl+S` saves, `Ctrl+P` saves a named profile); `Tab` switches to
 a second section with the same model/thinking columns for **all 68 subagents**, so
 `run_agent` picks a pinned model per agent (`config/agents-models.json`, limits
-untouched). Profiles snapshot phases *and* agent pins. Profiles can also be managed
+untouched). `A` pins one model to the whole list (`T` for thinking), or
+`/ecc-models agents <provider> <model>` from the CLI. Profiles snapshot phases *and*
+agent pins. Profiles can also be managed
 with `/ecc-models save|load|delete|profiles`. The UI follows the system locale,
 `language` in the config, or `ECC_PI_SDD_LANG` (`auto|es|en`), and
 `/ecc-models language` switches it. Artifacts are written to

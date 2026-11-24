@@ -5,7 +5,7 @@
 - **Extension:** `extensions/ecc-agents.ts` — registers `run_agent` tool.
 - **Subset/source of truth:** `config/agents-subset.json` (all 68 agents in `ecc/agents/`: 28 with `write`/`edit`, 40 read-only).
 - **Generated agent data:** `config/agents-generated.json` (from `./ecc/agents/*.md`, not hand-authored).
-- **Per-agent model + runtime config:** `config/agents-models.json` — model pins (editable from the `/ecc-models` agents section) and runtime limits (`maxTurns`, `timeoutMs`, `maxParallel`). The selector only ever writes `provider`/`model`/`thinking`; limits and comments are preserved. Profiles saved with `/ecc-models` snapshot the pins of every agent in the subset.
+- **Per-agent model + runtime config:** `config/agents-models.json` — model pins (editable from the `/ecc-models` agents section) and runtime limits (`maxTurns`, `timeoutMs`, `maxParallel`). The selector only ever writes `provider`/`model`/`thinking`; limits and comments are preserved. Profiles saved with `/ecc-models` snapshot the pins of every agent in the subset. `A` applies one model to every agent in the section (or only the `/`-filtered ones), and `/ecc-models agents <provider> <model> [thinking]` does the same without a TUI.
 - **Generator:** `scripts/build-agents.ts`.
 - **Regeneration:** `npm run build` (regenera todo) o `npm run build:agents` (solo este archivo).
 

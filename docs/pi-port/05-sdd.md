@@ -50,7 +50,9 @@ The `/ecc-models` screen edits `provider`/`model`/`thinking` per agent (the agen
 section, reached with `Tab`) and never touches `maxTurns`/`timeoutMs`/`comment`. The
 roster comes from `config/agents-generated.json`, so an agent without a pin still
 appears in the list. An unset pin means the child inherits the session's
-provider/model. Limits are *not* part of a profile.
+provider/model. Limits are *not* part of a profile. `A` in the agents section
+applies one model to the whole (possibly filtered) list, so pinning all 68 at once
+is a single picker.
 
 ### Profiles (named presets)
 
@@ -110,6 +112,9 @@ ECC_PI_SDD_LANG  >  language in config/sdd-models.json  >  system locale
 - `/ecc-models <phase> <provider> <model> [thinking]` — set one phase (also clears
   `activeProfile`, because the config no longer matches a preset exactly).
 - `/ecc-models <phase> clear` — remove the provider/model/thinking override for a phase.
+- `/ecc-models agents <provider> <model> [thinking]` — pin **every** subagent in the
+  roster to one model in one shot (thinking is only written when you pass it).
+- `/ecc-models agents clear` — remove provider/model/thinking from every subagent.
 - `/sdd-spec <feature> <request...>` — switch to `spec` model, prompt phase, target `specs/<feature>/spec.md`.
 - `/sdd-plan <feature>` — switch to `plan` model, read prior artifact(s), target `plan.md` + `tasks.md`.
 - `/sdd-implement <feature> [focus]` — switch to `implement` model, task-by-task execution from `tasks.md`, tests-before-code, mark `- [ ]` → `- [x]` in `tasks.md`.
@@ -127,12 +132,14 @@ writes to `config/agents-models.json`. Navigation and shortcuts:
 
 | Key | Action |
 |---|---|
-| `Tab` | Switch between the *phases* and *agents* sections |
+| `Tab` (or `Ctrl+T` if the app swallows Tab) | Switch between the *phases* and *agents* sections |
 | `↑` / `↓` | Move between rows |
 | `PgUp` / `PgDn` | Jump a page in the agents section |
 | `/` | Filter agents by name (agents section only) |
 | `←` / `→` | Move between the Model and Thinking columns |
 | `Enter` | Edit the selected cell (searchable model picker or thinking list) |
+| `A` | Pick one model and apply it to **every row in the list** (agents section only) |
+| `T` | Pick one thinking level and apply it to **every row in the list** (agents section only) |
 | `Ctrl+S` | Persist to `config/sdd-models.json` **and** `config/agents-models.json` |
 | `Ctrl+P` | Save the current config as a named profile (phases + agent pins) |
 | `Esc` | Close the editor; unsaved edits are discarded (with a warning) |
@@ -143,6 +150,13 @@ The editor follows the resolved language. The main menu also has an
 The model picker supports fuzzy search, “sin override”, and a manual
 `provider/model` entry for models missing from the registry. Escaping with unsaved
 changes does not autosave; `Ctrl+S` is the explicit save.
+
+`A` (model) and `T` (thinking) are the bulk path: they open the same picker scoped
+to the whole visible list, so one choice pins all 68 subagents at once — and after
+`/` the bulk still respects the filter, which is how you pin only the reviewers or
+only the writers. The picker header says how many agents the choice will hit and
+`(mixed)`/`(distintos)` when the list does not share one value. Thinking is left
+alone when you only swap models from the CLI.
 
 Feature names are slugified and used as `specs/<feature>/...`; current feature is persisted in `specs/.sdd-state.json` (project cwd).
 
