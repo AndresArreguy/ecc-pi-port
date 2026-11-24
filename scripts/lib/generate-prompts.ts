@@ -42,8 +42,8 @@ export function adaptBody(body: string, sourceName: string): { body: string; aut
   const replacements: Array<[RegExp, string, string]> = [
     [/~\/\.claude\b/g, "~/.claude (Claude user config path; not used by this Pi port)", "Normalized ~/.claude user-config path references for Pi context."],
     [/\bClaude Code\b/g, "the coding agent", "Generalized Claude Code-specific wording."],
-    [/\bTask tool\b/g, "subagent/task delegation (unavailable in core Pi)", "Replaced Task tool references."],
-    [/\bsubagent_type\b/g, "subagent type (Claude-specific)", "Replaced subagent_type references."],
+    [/\bTask tool\b/g, "`run_agent` tool", "Mapped Task tool delegation references to `run_agent`."],
+    [/\bsubagent_type\b/g, "run_agent `agent`", "Mapped subagent_type references to the run_agent `agent` parameter."],
     [/\bgh pr create\b/g, "gh pr create (requires GitHub CLI/auth/network)", "Annotated gh-based PR actions as environment-dependent."],
   ];
 
@@ -56,41 +56,44 @@ export function adaptBody(body: string, sourceName: string): { body: string; aut
 
   if (sourceName === "plan.md") {
     out = out.replace(
-      /Run inline by default\. Do not call the Task tool or any subagent by default\. This keeps \/plan usable from plugin installs that ship commands without agent files\./g,
-      "Run inline by default. Do not assume subagent/Task-tool delegation; perform analysis directly with available tools (read, grep/find, bash, edit/write).",
+      /Run inline by default\. Do not call the (?:Task tool|`run_agent` tool) or any subagent by default\. This keeps `\/plan` usable from plugin installs that ship commands without agent files\./g,
+      "Delegate the planning pass to the `planner` agent with `run_agent`. `planner` is read-only: it returns the plan and touches no files. Synthesize its output inline, resolve the open questions with the user, and only then start implementing.",
     );
     out = out.replace(
       /## Optional Planner Agent[\s\S]*?`agents\/planner\.md`\s*/g,
       [
-        "## Planner Delegation (Pi port)",
+        "## Planner Delegation",
         "",
-        "ECC provides a `planner` agent definition for Claude-style runtimes. In core Pi, run planning inline by default.",
-        "If your environment has an equivalent subagent/delegation mechanism (e.g. companion package or SDK child session), you may delegate explicitly; otherwise continue inline.",
+        "Call `run_agent` with `agent: \"planner\"` and a brief that carries the goal, the files you already know about, and the constraints.",
+        "",
+        "- Unknown codebase area → run `code-explorer` first (read-only) and hand its findings to `planner`.",
+        "- Plan hinges on a schema, contract or architecture call → use `architect` instead of `planner`.",
+        "- One-line change or typo → do not delegate; edit inline.",
         "",
       ].join("\n"),
     );
-    auto.push("Removed Claude planner-subagent delegation instructions and kept inline planning behavior for Pi.");
   }
 
   if (sourceName === "feature-dev.md") {
     out = out.replace(
       /- use `code-explorer` to analyze the relevant existing code/g,
-      "- explore the relevant existing code directly (use read/grep/find/bash) to trace execution paths, architecture, and integration points",
+      "- delegate to `code-explorer` with `run_agent` (read-only) to trace execution paths, architecture and integration points; it returns analysis, not diffs",
     );
     out = out.replace(
       /- use `code-architect` to design the feature/g,
-      "- design the feature architecture inline (or delegate only if a Pi-compatible subagent mechanism is available)",
+      "- delegate to `architect` with `run_agent` when the feature needs a schema, contract or architecture decision; skip it for straightforward changes",
     );
     out = out.replace(
       /- use `code-reviewer` to review the implementation/g,
-      "- review the implementation inline (and/or use the `code-review` prompt template / review skills)",
+      "- delegate to `code-reviewer` (plus the stack reviewer: `react-reviewer`, `typescript-reviewer`, …) once the implementation is green",
     );
     out = [
-      "> **Pi port status:** degradado respecto del flujo multi-agente original (subagentes/Task tool). Ejecuta inline con las herramientas de Pi hasta que se use `run_agent` o delegación externa.",
+      "> **Pi port status:** el pipeline multi-agente corre con `run_agent` (subagentes aislados). El orquestador es el chat principal: delega, consolida y corre el gate del proyecto en `bash`. Agregá `security-reviewer` cuando el cambio toque auth, permisos, inputs de usuario o secretos.",
+      "",
+      "Implement the tasks with `tdd-guide` (tests first) and hand it one task per call, with the exact files and the done criterion. Serialize writes: two agents never touch the same file at once.",
       "",
       out.trimStart(),
     ].join("\n");
-    auto.push("Converted subagent-driven phases (code-explorer/code-architect/code-reviewer) to inline Pi tool-driven steps.");
   }
 
   if (sourceName === "code-review.md") {
@@ -113,6 +116,27 @@ export function adaptBody(body: string, sourceName: string): { body: string; aut
       ].join("\n"),
     );
     auto.push("Made PR publish/fetch steps conditional on gh auth and network availability; added local fallback.");
+    out = [
+      "> **Pi port status:** la revisión corre por `run_agent`: `code-reviewer`, o el reviewer del stack (`react-reviewer`, `typescript-reviewer`, `vue-reviewer`, …) cuando el diff es de un solo stack. Sumá `security-reviewer` si toca auth, permisos, inputs de usuario o secretos. El agente devuelve hallazgos; el gate del proyecto lo corrés vos.",
+      "",
+      out.trimStart(),
+    ].join("\n");
+  }
+
+  if (sourceName === "test-coverage.md") {
+    out = [
+      "> **Pi port status:** usá `pr-test-analyzer` (read-only) para encontrar los gaps reales y después `tdd-guide` para escribir los tests que faltan. El analyzer devuelve prioridades, no código. Para un bug con repro, `tdd-guide` primero y el fix después.",
+      "",
+      out.trimStart(),
+    ].join("\n");
+  }
+
+  if (sourceName === "prp-implement.md") {
+    out = [
+      "> **Pi port status:** ejecutá las tareas con `tdd-guide` (tests primero), una tarea por llamada y con las rutas exactas. Si el build o el typecheck se rompen, `build-error-resolver` en vez de pelear inline. La verificación final es tuya: corré el gate del proyecto y pegá la salida.",
+      "",
+      out.trimStart(),
+    ].join("\n");
   }
 
   if (sourceName === "quality-gate.md") {
@@ -135,6 +159,8 @@ export function adaptBody(body: string, sourceName: string): { body: string; aut
       "```",
       "",
       "To apply fixes (equivalent intent to `ECC_QUALITY_GATE_FIX=true`), use formatter write modes supported by the project (e.g. `prettier --write`, `ruff format <path>`, `gofmt -w <path>`). Lint/type/test verification is out of scope for this gate; use `test-coverage`, `code-review`, or the `verification-loop` skill as appropriate.",
+      "",
+      "If the gate keeps failing on something bigger than formatting (type errors, broken build, failing suite), delegate to `build-error-resolver` with `run_agent` and the failing command output in the brief.",
       "",
       "---",
       "",
@@ -240,7 +266,7 @@ function generateDoc(config: AllowlistConfig): string {
   lines.push("");
   lines.push("- **Spec:** `/plan-prd` (lean PRD/spec artifact).");
   lines.push("- **Plan:** `/plan` (implementation plan; waits for confirmation).");
-  lines.push("- **Implement:** `/prp-implement` (plan execution with validation loops), `/feature-dev` (adapted inline).");
+  lines.push("- **Implement:** `/prp-implement` (plan execution with validation loops), `/feature-dev` (run_agent pipeline: explorer → architect → tdd-guide → review).");
   lines.push("- **Review:** `/code-review` (local ready, PR publish/fetch partial depending on gh/network).");
   lines.push("- **Verify:** `/test-coverage` (coverage analysis and gap-filling workflow).");
   lines.push("- **Quality gate:** `/quality-gate` (hook adapter path plus inline formatter fallback).");

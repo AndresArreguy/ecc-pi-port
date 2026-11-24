@@ -3,9 +3,9 @@
 ## Scope and artifacts
 
 - **Extension:** `extensions/ecc-agents.ts` — registers `run_agent` tool.
-- **Subset/source of truth:** `config/agents-subset.json` (`planner`, `code-reviewer`, `security-reviewer`, `build-error-resolver`, `tdd-guide`, `architect`).
+- **Subset/source of truth:** `config/agents-subset.json` (all 68 agents in `ecc/agents/`: 28 with `write`/`edit`, 40 read-only).
 - **Generated agent data:** `config/agents-generated.json` (from `./ecc/agents/*.md`, not hand-authored).
-- **Per-agent model + runtime config:** `config/agents-models.json`.
+- **Per-agent model + runtime config:** `config/agents-models.json` — model pins (editable from the `/ecc-models` agents section) and runtime limits (`maxTurns`, `timeoutMs`, `maxParallel`). The selector only ever writes `provider`/`model`/`thinking`; limits and comments are preserved. Profiles saved with `/ecc-models` snapshot the pins of every agent in the subset.
 - **Generator:** `scripts/build-agents.ts`.
 - **Regeneration:** `npm run build` (regenera todo) o `npm run build:agents` (solo este archivo).
 
@@ -55,6 +55,37 @@ To avoid Windows `.cmd` shim spawning issues, the extension resolves and runs th
 | `Write` | `write` |
 | `Edit` | `edit` |
 | Unknown/MCP (`mcp__*`) | not mapped; recorded in `unmappedTools` |
+
+## Delegation routing (intent → agent)
+
+Delegation is intent-based, not a manual flag: `lib/ecc-agent-routing.ts` holds the
+table and `extensions/ecc-agents.ts` renders it into the `run_agent`
+`promptGuidelines`, so the routing travels with the tool (and survives compaction)
+instead of relying on the model remembering a doc.
+
+| Intent cue (es / en) | Agents, in order |
+|---|---|
+| "hagamos un plan", "planificá" | `planner` (read-only) |
+| "vamos a encarar esta feature", "implementá" | `code-explorer` → `architect` (only for schema/contract calls) → `tdd-guide` → `code-reviewer` |
+| "arreglá el bug", "por qué falla" | `tdd-guide` (reproducing test first) |
+| "arreglá el build", "typecheck roto" | `build-error-resolver` |
+| "revisá esto", después de escribir código | `code-reviewer`, or the stack reviewer (`react-reviewer`, `typescript-reviewer`, …) |
+| auth, permisos, secretos, inputs de usuario | `security-reviewer` (adds to review, never replaces it) |
+| "limpiá", "refactorizá" | `code-simplifier` → `refactor-cleaner` → `code-reviewer` |
+| "está lento", performance | `performance-optimizer` |
+| accesibilidad, a11y | `a11y-architect` |
+| "faltan tests", cobertura | `pr-test-analyzer` → `tdd-guide` |
+| "actualizá la doc", README | `doc-updater` |
+| "¿está listo para prod?", auditar | `security-reviewer` → `code-reviewer` + the project gate |
+
+Rules that ship with the table: one-line changes and typos stay inline; read-only
+routes run in parallel but two agents never write the same file; every brief carries
+exact paths and the done criterion; the child does not know the project gate, so the
+main session runs it before reporting anything as done.
+
+`tests/pi-port/agent-routing.test.ts` asserts every routed agent exists in
+`config/agents-generated.json`, that the rendered block stays under 22 lines, and that
+the generated prompt templates carry no anti-delegation leftovers.
 
 ## `run_agent` tool contract
 

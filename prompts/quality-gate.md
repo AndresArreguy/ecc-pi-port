@@ -7,12 +7,11 @@ Source: ecc/commands/quality-gate.md
 SDD role: quality-gate
 Status: partial
 Blocked reason: Original command wrapped the ECC hook runtime; the hooks adapter now runs the gate on edit/write and the template keeps an inline fallback.
-Dependencies: hooks
+Dependencies: hooks, run_agent
 Adaptations:
 - Converted to a Pi prompt template that explains the limitation and provides inline formatter-check alternatives (Biome/Prettier/gofmt/ruff) via bash when available.
-- Documented ECC hook-script invocation as unavailable in this Pi port unless hook bridge/scripts are wired.
-- Added explicit blocked status and unlock stage.
 - Documented the hook adapter path and kept inline formatter-check fallback.
+- Failures bigger than formatting delegate to `build-error-resolver` through `run_agent`.
 -->
 
 > **Pi port status:** el adaptador de hooks (`extensions/ecc-hooks.ts`) ejecuta el quality gate de ECC en `tool_result` para `edit`/`write` cuando el hook está habilitado. Esta plantilla mantiene la alternativa inline como fallback.
@@ -33,6 +32,8 @@ ruff format --check "<path>"
 ```
 
 To apply fixes (equivalent intent to `ECC_QUALITY_GATE_FIX=true`), use formatter write modes supported by the project (e.g. `prettier --write`, `ruff format <path>`, `gofmt -w <path>`). Lint/type/test verification is out of scope for this gate; use `test-coverage`, `code-review`, or the `verification-loop` skill as appropriate.
+
+If the gate keeps failing on something bigger than formatting (type errors, broken build, failing suite), delegate to `build-error-resolver` with `run_agent` and the failing command output in the brief.
 
 ---
 

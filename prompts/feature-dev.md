@@ -5,18 +5,17 @@ description: Guided feature development with codebase understanding and architec
 Pi prompt template generated from ECC command
 Source: ecc/commands/feature-dev.md
 SDD role: implement
-Status: partial
-Blocked reason: Original multi-agent orchestration (code-explorer/code-architect/code-reviewer) runs inline or via run_agent; no automatic 3-agent pipeline.
-Unblocks at: Future: automatic delegation pipeline (optional).
-Dependencies: subagents, run_agent
+Status: ready
+Dependencies: run_agent
 Adaptations:
-- Converted agent-delegation phases to inline guidance using Pi tools (read/grep/find/bash/edit/write) so it can be followed without subagents.
-- Marked original multi-agent orchestration as degraded/blocked until delegation support is added.
-- Removed Task-tool-specific instructions.
-- Converted subagent-driven phases (code-explorer/code-architect/code-reviewer) to inline Pi tool-driven steps.
+- Restored the multi-agent pipeline through `run_agent`: code-explorer → architect (only for schema/contract calls) → tdd-guide (tests first) → code-reviewer + stack reviewer.
+- The main session orchestrates: it writes the briefs, serializes writes per file, consolidates findings and runs the project gate itself.
+- Adds `security-reviewer` when the change touches auth, permissions, user input or secrets.
 -->
 
-> **Pi port status:** degradado respecto del flujo multi-agente original (subagentes/Task tool). Ejecuta inline con las herramientas de Pi hasta que se use `run_agent` o delegación externa.
+> **Pi port status:** el pipeline multi-agente corre con `run_agent` (subagentes aislados). El orquestador es el chat principal: delega, consolida y corre el gate del proyecto en `bash`. Agregá `security-reviewer` cuando el cambio toque auth, permisos, inputs de usuario o secretos.
+
+Implement the tasks with `tdd-guide` (tests first) and hand it one task per call, with the exact files and the done criterion. Serialize writes: two agents never touch the same file at once.
 
 A structured feature-development workflow that emphasizes understanding existing code before writing new code.
 
@@ -30,7 +29,7 @@ A structured feature-development workflow that emphasizes understanding existing
 
 ### 2. Codebase Exploration
 
-- explore the relevant existing code directly (use read/grep/find/bash) to trace execution paths, architecture, and integration points
+- delegate to `code-explorer` with `run_agent` (read-only) to trace execution paths, architecture and integration points; it returns analysis, not diffs
 - trace execution paths and architecture layers
 - understand integration points and conventions
 
@@ -42,7 +41,7 @@ A structured feature-development workflow that emphasizes understanding existing
 
 ### 4. Architecture Design
 
-- design the feature architecture inline (or delegate only if a Pi-compatible subagent mechanism is available)
+- delegate to `architect` with `run_agent` when the feature needs a schema, contract or architecture decision; skip it for straightforward changes
 - provide the implementation blueprint
 - wait for approval before implementing
 
@@ -54,7 +53,7 @@ A structured feature-development workflow that emphasizes understanding existing
 
 ### 6. Quality Review
 
-- review the implementation inline (and/or use the `code-review` prompt template / review skills)
+- delegate to `code-reviewer` (plus the stack reviewer: `react-reviewer`, `typescript-reviewer`, …) once the implementation is green
 - address critical and important issues
 - verify test coverage
 

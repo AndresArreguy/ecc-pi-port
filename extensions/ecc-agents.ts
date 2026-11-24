@@ -18,6 +18,7 @@ const pathMod = path;
 import * as readline from "node:readline";
 import { Type } from "typebox";
 import { fileURLToPath } from "node:url";
+import { renderRoutingGuidance } from "../lib/ecc-agent-routing.ts";
 
 interface PiUiContext {
   notify?(message: string, type?: "info" | "warning" | "error"): void;
@@ -545,14 +546,19 @@ export default function eccAgentsExtension(pi: any): void {
   pi.registerTool({
     name: "run_agent",
     label: "Run ECC Agent",
-    description: "Run an ECC agent (planner, code-reviewer, security-reviewer, build-error-resolver, tdd-guide, architect) in an isolated child pi session and return only the final result.",
+    description:
+      "Run any ECC agent from the generated subset (config/agents-subset.json) in an isolated child pi session and return only the final result. Read-only: planner, architect, code-explorer, code-architect, code-reviewer, security-reviewer, the per-stack reviewers, seo-specialist. Can write files: tdd-guide, build-error-resolver, code-simplifier, refactor-cleaner, a11y-architect, performance-optimizer, doc-updater, e2e-runner, spec-miner.",
     promptSnippet: "Run a specialized ECC agent in an isolated child Pi session and return its final result",
     promptGuidelines: [
-      "Use run_agent when a task should be delegated to a specialized ECC agent (planner, code-reviewer, security-reviewer, build-error-resolver, tdd-guide, architect).",
+      ...renderRoutingGuidance(),
+      "Only agents whose tool list includes write/edit can change files; read-only agents return analysis to the main session.",
       "Use run_agent with a clear task and optional context; prefer it for isolated analysis/review/planning without polluting the main session context.",
     ],
     parameters: Type.Object({
-      agent: Type.String({ description: "Agent name from generated subset (e.g. planner, code-reviewer, security-reviewer, build-error-resolver, tdd-guide, architect)" }),
+      agent: Type.String({
+        description:
+          "Agent name from the generated subset (68 agents, e.g. planner, architect, tdd-guide, code-simplifier, refactor-cleaner, code-reviewer, react-reviewer, typescript-reviewer, security-reviewer, silent-failure-hunter)",
+      }),
       task: Type.String({ description: "Task/instructions for the agent" }),
       cwd: Type.Optional(Type.String({ description: "Working directory for the child session (defaults to current session cwd)" })),
       context: Type.Optional(Type.String({ description: "Additional context to include with the task" })),

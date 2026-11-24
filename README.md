@@ -102,9 +102,9 @@ pi -e .
 | Prompt commands | 7 | `/plan-prd`, `/plan`, `/prp-implement`, `/feature-dev`, `/code-review`, `/test-coverage`, `/quality-gate`. |
 | Rules | 22 stacks · 121 files | `common` + TypeScript, React, Python, Go, Rust, Java, Kotlin, PHP, Ruby, Swift, C#, C++, Dart, Vue, Nuxt, Angular, Perl, F#, ArkTS, Web, React Native. |
 | Extensions | 4 | `ecc-hooks`, `ecc-rules`, `ecc-agents`, `ecc-sdd`. |
-| Agents | 6 | `planner`, `code-reviewer`, `security-reviewer`, `build-error-resolver`, `tdd-guide`, `architect` via the `run_agent` tool. |
+| Agents | 68 | The full ECC agent set via the `run_agent` tool: 28 can write files (`tdd-guide`, `build-error-resolver`, `code-simplifier`, `refactor-cleaner`, `a11y-architect`, …), 40 are read-only (planners, architects, per-stack reviewers, analyzers). Routing is intent-based — see below. |
 | Hooks | 5 on / 4 optional | `session:start`, `session:end:marker`, `pre:bash:dispatcher`, `post:quality-gate`, `stop:format-typecheck`. |
-| SDD flow | 7 commands | `/sdd-model` (`/sdd-models` alias), `/sdd-spec`, `/sdd-plan`, `/sdd-implement`, `/sdd-review`, `/sdd-verify`. |
+| SDD flow | 7 commands | `/ecc-models` (`/sdd-models` alias), `/sdd-spec`, `/sdd-plan`, `/sdd-implement`, `/sdd-review`, `/sdd-verify`. |
 
 ### Commands
 
@@ -112,13 +112,21 @@ pi -e .
 /plan-prd        lean PRD / spec
 /plan            implementation plan (waits for confirmation)
 /prp-implement   execute a plan with validation loops
-/feature-dev     end-to-end feature (inline or via run_agent)
+/feature-dev     end-to-end feature (run_agent: explorer → architect → tdd-guide → review)
 /code-review     local review; PR mode needs gh + network
 /test-coverage   coverage analysis and gap filling
 /quality-gate    formatter gate (hook or inline fallback)
 ```
 
 Templates keep ECC's `.claude/` artifact paths for compatibility.
+
+The command prompts delegate through `run_agent` (they no longer run inline by
+default). Delegation is routed by intent, not by remembering to ask: the
+`run_agent` prompt guidelines carry the table, so "hagamos un plan" reaches
+`planner`, "vamos a encarar esta feature" reaches the
+`code-explorer → architect → tdd-guide → code-reviewer` pipeline, and "arreglá el
+build" reaches `build-error-resolver`. One-line changes stay inline, and the main
+session always runs the project gate itself — a child does not know it.
 
 ### Hooks
 
@@ -165,12 +173,15 @@ provider/model/thinking per agent).
 ### SDD flow
 
 `config/sdd-models.json` selects provider/model/thinking per phase
-(`spec`, `plan`, `implement`, `review`, `verify`, `light`). `/sdd-model` (alias
-`/sdd-models`) opens a single screen with every phase and its model/thinking
-(`Ctrl+S` saves, `Ctrl+P` saves a named profile); profiles can also be managed
-with `/sdd-model save|load|delete|profiles`. The UI follows the system locale,
+(`spec`, `plan`, `implement`, `review`, `verify`, `light`). `/ecc-models` (legacy
+`/sdd-model`, `/sdd-models`) opens a single screen with every phase and its
+model/thinking (`Ctrl+S` saves, `Ctrl+P` saves a named profile); `Tab` switches to
+a second section with the same model/thinking columns for **all 68 subagents**, so
+`run_agent` picks a pinned model per agent (`config/agents-models.json`, limits
+untouched). Profiles snapshot phases *and* agent pins. Profiles can also be managed
+with `/ecc-models save|load|delete|profiles`. The UI follows the system locale,
 `language` in the config, or `ECC_PI_SDD_LANG` (`auto|es|en`), and
-`/sdd-model language` switches it. Artifacts are written to
+`/ecc-models language` switches it. Artifacts are written to
 `specs/<feature>/` (`spec.md`, `plan.md`, `tasks.md`, `review.md`, `verify.md`,
 `costs.md`).
 

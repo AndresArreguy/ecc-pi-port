@@ -9,13 +9,15 @@ SDD role: review
 Status: partial
 Blocked reason: PR mode relies on GitHub CLI/API access and network connectivity; local review is fully usable.
 Unblocks at: Stage 4+ — environment with gh auth/network and optional MCP/GitHub tooling; PR publish automation may also benefit from hook/command integrations.
-Dependencies: github-cli, network
+Dependencies: run_agent, github-cli, network
 Adaptations:
-- Preserved local and PR review modes with Pi-friendly tool usage.
+- Delegates the review to `code-reviewer` (or the stack reviewer: react-reviewer, typescript-reviewer, …) through `run_agent`; adds `security-reviewer` for sensitive diffs.
 - Made gh/network-dependent PR fetch/publish steps explicitly conditional and documented fallbacks (review diff locally, produce report without publishing).
 - Normalized artifact/report path guidance for Pi workspace compatibility.
 - Made PR publish/fetch steps conditional on gh auth and network availability; added local fallback.
 -->
+
+> **Pi port status:** la revisión corre por `run_agent`: `code-reviewer`, o el reviewer del stack (`react-reviewer`, `typescript-reviewer`, `vue-reviewer`, …) cuando el diff es de un solo stack. Sumá `security-reviewer` si toca auth, permisos, inputs de usuario o secretos. El agente devuelve hallazgos; el gate del proyecto lo corrés vos.
 
 # Code Review
 

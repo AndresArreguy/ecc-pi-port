@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+- **Subset completo de agentes**: `config/agents-subset.json` pasa de 6 a los 68 agentes de `ecc/agents/` (28 con `write`/`edit`, 40 de sólo lectura). Se regenera con `npm run build` (no `build:agents` solo, que deja `sourceRef` en null y rompe `build:check`).
+- **Límites por agente**: `config/agents-models.json` sube los defaults a `maxTurns: 25`, `timeoutMs: 600000`, `maxParallel: 3` y fija overrides para los que escriben (`tdd-guide`, `code-simplifier`, `refactor-cleaner` 40/15 min; `e2e-runner` 45/20 min; `build-error-resolver` 30/10 min).
+- **`/ecc-models`** reemplaza a `/sdd-model` (que queda como alias, junto con `/sdd-models`) y suma una **sección de agentes**: `Tab` alterna fases/agentes, `/` filtra por nombre, `PgUp`/`PgDn` recorren el roster y `Ctrl+S` persiste fases y pines en sus dos archivos. Nunca toca `maxTurns`/`timeoutMs`/comentarios.
+- **Perfiles con agentes**: `SddProfile.agents` guarda el pin de cada subagente, así cargar un perfil restaura fases *y* modelos de agentes. Los límites quedan fuera del perfil a propósito.
+- **Routing por intención**: `lib/ecc-agent-routing.ts` define 12 rutas (plan, feature, bug, build, review, security, cleanup, performance, a11y, tests, docs, ship) con guardrails, y `extensions/ecc-agents.ts` las renderiza en las `promptGuidelines` de `run_agent`. El routing viaja con el tool (sobrevive compactación) en vez de depender de una tabla en un doc.
+- **Los prompts de comando vuelven a delegar**: la degradación estaba hardcodeada en `adaptBody` (`scripts/lib/generate-prompts.ts`). `plan` → `planner`; `feature-dev` → `code-explorer → architect → tdd-guide → code-reviewer` y pasa a `status: ready`; `code-review` → `code-reviewer` + reviewer del stack + `security-reviewer`; `test-coverage` → `pr-test-analyzer` + `tdd-guide`; `prp-implement` → `tdd-guide` / `build-error-resolver`; `quality-gate` → `build-error-resolver` cuando falla algo más que formato.
+- `tests/pi-port/agent-routing.test.ts`: valida que cada agente de las rutas exista en el subset generado, que el bloque renderizado no pase de 22 líneas y que ningún prompt generado tenga frases anti-delegación.
+- Nueva capa testeable `lib/ecc-agent-models.ts` (roster, snapshots, merge con límites preservados) y stubs de `pi-tui` para poder importar la extensión en tests (`tests/pi-port/ecc-sdd-registration.test.ts`).
+
+
 ## [0.8.0] - 2026-11-16
 
 - Contribución: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, reporte privado en `SECURITY.md` y templates de issues/PR.

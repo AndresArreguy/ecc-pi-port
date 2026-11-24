@@ -7,19 +7,18 @@ Pi prompt template generated from ECC command
 Source: ecc/commands/plan.md
 SDD role: plan
 Status: ready
+Dependencies: run_agent
 Adaptations:
-- Preserved inline-by-default planning; removed/rewrote Task-tool subagent delegation to inline analysis.
-- Normalized references to Pi commands/skills (e.g. /tdd-workflow skill, /code-review, /test-coverage) instead of Claude-only agent invocation.
+- Delegates the planning pass to the `planner` agent through `run_agent` (read-only: returns the plan, touches no files).
 - Kept .claude/plans artifact path for compatibility and documented artifact-path considerations.
-- Replaced Task tool references.
-- Removed Claude planner-subagent delegation instructions and kept inline planning behavior for Pi.
+- Mapped Task tool delegation references to `run_agent`.
 -->
 
 # Plan Command
 
 This command creates a comprehensive implementation plan before writing any code. It accepts either free-form requirements or a PRD markdown file.
 
-Run inline by default. Do not call the subagent/task delegation (unavailable in core Pi) or any subagent by default. This keeps `/plan` usable from plugin installs that ship commands without agent files.
+Delegate the planning pass to the `planner` agent with `run_agent`. `planner` is read-only: it returns the plan and touches no files. Synthesize its output inline, resolve the open questions with the user, and only then start implementing.
 
 ## What This Command Does
 
@@ -208,7 +207,10 @@ After planning:
 >
 > **Need the legacy PRP flow?** Use `/prp-plan` for deep PRP planning with `.claude/PRPs/` artifacts. Use `/prp-implement` to execute those plans with rigorous validation loops.
 
-## Planner Delegation (Pi port)
+## Planner Delegation
 
-ECC provides a `planner` agent definition for Claude-style runtimes. In core Pi, run planning inline by default.
-If your environment has an equivalent subagent/delegation mechanism (e.g. companion package or SDK child session), you may delegate explicitly; otherwise continue inline.
+Call `run_agent` with `agent: "planner"` and a brief that carries the goal, the files you already know about, and the constraints.
+
+- Unknown codebase area → run `code-explorer` first (read-only) and hand its findings to `planner`.
+- Plan hinges on a schema, contract or architecture call → use `architect` instead of `planner`.
+- One-line change or typo → do not delegate; edit inline.

@@ -7,12 +7,15 @@ Pi prompt template generated from ECC command
 Source: ecc/commands/prp-implement.md
 SDD role: implement
 Status: ready
+Dependencies: run_agent
 Adaptations:
-- Retained file-driven implementation/validation workflow executable with Pi read/bash/edit/write tools.
-- Replaced any Claude subagent assumptions with direct inline execution steps.
+- Task execution delegates to `tdd-guide` (tests first, one task per call) through `run_agent`.
+- Build/typecheck failures delegate to `build-error-resolver` instead of being debugged inline by the orchestrator.
 - Kept .claude/PRPs report/plan paths as source-compatible artifacts; noted portability considerations.
 - Retained .claude/* artifact paths for ECC workflow compatibility (portable-path strategy tracked as an open question).
 -->
+
+> **Pi port status:** ejecutá las tareas con `tdd-guide` (tests primero), una tarea por llamada y con las rutas exactas. Si el build o el typecheck se rompen, `build-error-resolver` en vez de pelear inline. La verificación final es tuya: corré el gate del proyecto y pegá la salida.
 
 > Adapted from PRPs-agentic-eng by Wirasm. Part of the PRP workflow series.
 

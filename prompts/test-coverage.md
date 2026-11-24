@@ -6,12 +6,14 @@ Pi prompt template generated from ECC command
 Source: ecc/commands/test-coverage.md
 SDD role: verify
 Status: ready
+Dependencies: run_agent
 Adaptations:
-- Kept framework-detection and coverage workflow; expressed as inline steps using Pi bash/read/edit/write tools.
+- Gap analysis delegates to `pr-test-analyzer` (read-only) and test writing to `tdd-guide` through `run_agent`.
 - Clarified that verification quality depends on project test tooling being installed locally.
-- No subagent, hook, or MCP dependency required.
 - Retained .claude/* artifact paths for ECC workflow compatibility (portable-path strategy tracked as an open question).
 -->
+
+> **Pi port status:** usá `pr-test-analyzer` (read-only) para encontrar los gaps reales y después `tdd-guide` para escribir los tests que faltan. El analyzer devuelve prioridades, no código. Para un bug con repro, `tdd-guide` primero y el fix después.
 
 # Test Coverage
 
