@@ -4,3 +4,4 @@ ecc/
 npm-debug.log*
 *.tgz
 .env
+.design/
